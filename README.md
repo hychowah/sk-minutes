@@ -4,12 +4,12 @@ This repository now contains the implementation foundation for a local transcrip
 
 ## Purpose
 
-Minutes is a local transcription project for turning recorded media into reviewable text outputs on a Windows workstation.
+Minutes is a local transcription project for turning recorded media into reviewable text outputs on a Windows workstation, with the current main language focus on Cantonese and English.
 
 The current implementation is aimed at these outcomes:
 
 - Accept a real media file and normalize it into a stable audio artifact for downstream processing.
-- Produce a plain transcript with SenseVoice through FunASR.
+- Produce a plain transcript with SenseVoice through FunASR, with current emphasis on Cantonese and English audio.
 - Optionally run pyannote diarization and assemble a speaker-attributed transcript that is easier to inspect and refine.
 - Keep the pipeline local, file-backed, and inspectable so later summary generation can build on known transcript artifacts instead of opaque model responses.
 
@@ -20,6 +20,20 @@ In practice, this project is the foundation for a workflow like this: input audi
 - A Python local application scaffold for transcription, opt-in diarization, and later summarization work.
 - A documentation control plane for human onboarding and multi-session LLM work.
 - A committed sample output set under [sample/test1](sample/test1) generated from the validated [file/test1.mp3](file/test1.mp3) fixture.
+
+## Core Speech Stack
+
+This repository is mainly a local orchestration and packaging layer around a small number of upstream speech components.
+
+- FunASR: the speech runtime used to load and run the transcription model.
+- SenseVoiceSmall: the current ASR model used for transcript generation, with current project focus on Cantonese and English speech.
+- pyannote.audio: the current speaker diarization pipeline.
+- fsmn-vad: the VAD model used alongside the transcription path.
+- PyTorch and torchaudio: the execution layer for the speech models, with validated CUDA use on this machine.
+- ffmpeg: the media utility used for probing, extraction, and normalization.
+- ModelScope and Hugging Face Hub: the model sources used by the current speech stack.
+
+The current implementation does not yet include the summary-generation backend, so libraries for the later OpenAI-compatible summary stage are not part of the live stack yet.
 
 ## Result Showcase
 
