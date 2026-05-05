@@ -1,0 +1,21 @@
+{
+  "source_media": "file/test1.mp3",
+  "job_id": "37faa46a38cb4670a7d46d3d9ffc816e",
+  "status": "completed",
+  "current_stage": "speaker_attributed",
+  "generated_at_utc": "2026-05-05T15:09:20.170107Z",
+  "artifacts": [
+    {
+      "kind": "transcript_text",
+      "path": "sample/test1/transcript.txt"
+    },
+    {
+      "kind": "speaker_transcript_text",
+      "path": "sample/test1/speaker_transcript.txt"
+    }
+  ],
+  "notes": [
+    "This sample set is copied from a validated real run and is intended for reviewable committed examples.",
+    "Bulky runtime artifacts remain under the gitignored .minutes-data state root."
+  ]
+}

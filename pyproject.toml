@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27,<2.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "minutes"
+version = "0.1.0"
+description = "Local-first audio and video transcription workspace."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "funasr>=1.3,<2.0",
+    "huggingface_hub>=1.13,<2.0",
+    "jinja2>=3.1,<4.0",
+    "modelscope>=1.36,<2.0",
+    "pydantic-settings>=2.9,<3.0",
+    "pyannote.audio>=3.1,<4.0",
+    "torch>=2.1,<3.0",
+    "torchaudio>=2.1,<3.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28,<1.0",
+    "pytest>=8.3,<9.0",
+    "ruff>=0.11,<1.0",
+]
+
+[project.scripts]
+minutes = "minutes.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/minutes"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = [
+    "integration: marks tests that exercise real model downloads or full media processing",
+]

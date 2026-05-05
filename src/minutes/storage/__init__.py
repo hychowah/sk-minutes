@@ -1,0 +1,1 @@
+"""Storage primitives for the Minutes application."""

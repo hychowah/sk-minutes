@@ -1,0 +1,1 @@
+"""External tool and model adapters for the Minutes application."""
