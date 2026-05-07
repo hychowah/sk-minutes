@@ -6,6 +6,7 @@ from tempfile import NamedTemporaryFile
 
 from minutes.adapters.diarizer_pyannote import PyannoteDiarizationError, PyannoteDiarizer
 from minutes.adapters.ffmpeg import FfmpegAdapter, FfmpegError
+from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer, OpenAICompatibleSummaryError
 from minutes.adapters.transcriber_sensevoice import SenseVoiceError, SenseVoiceTranscriber
 from minutes.storage.file_store import FileStateStore
 from minutes.storage.models import ArtifactRecord, JobRecord, JobStatus
@@ -18,11 +19,13 @@ class JobOrchestrator:
         ffmpeg: FfmpegAdapter | None = None,
         transcriber: SenseVoiceTranscriber | None = None,
         diarizer: PyannoteDiarizer | None = None,
+        summarizer: OpenAICompatibleSummarizer | None = None,
     ) -> None:
         self.store = store or FileStateStore()
         self.ffmpeg = ffmpeg or FfmpegAdapter(self.store.settings)
         self.transcriber = transcriber or SenseVoiceTranscriber(self.store.settings)
         self.diarizer = diarizer or PyannoteDiarizer(self.store.settings)
+        self.summarizer = summarizer or OpenAICompatibleSummarizer(self.store.settings)
 
     def process_job(self, job_id: str) -> JobRecord:
         job = self.store.get_job(job_id)
@@ -40,6 +43,10 @@ class JobOrchestrator:
             return job
         if self.store.settings.diarization_enabled and self._artifact(job, "speaker_transcript_text") is None:
             job = self.assemble_speaker_transcript_job(job_id)
+        if job.status == JobStatus.FAILED:
+            return job
+        if self.store.settings.summary_configured and self._artifact(job, "summary_text") is None:
+            job = self.summarize_job(job_id)
         return job
 
     def normalize_job(self, job_id: str) -> JobRecord:
@@ -133,7 +140,10 @@ class JobOrchestrator:
 
         try:
             artifacts_root = self.store.artifacts_root(job_id)
-            result = self.transcriber.transcribe_file(normalized_audio.path)
+            result = self.transcriber.transcribe_file(
+                normalized_audio.path,
+                language=job.transcription_language,
+            )
             transcript_json_path = artifacts_root / "transcript.json"
             transcript_json_path.write_text(
                 json.dumps(result.raw_segments, indent=2, ensure_ascii=False),
@@ -390,6 +400,99 @@ class JobOrchestrator:
             )
             return self.store.save_job(failed_job)
 
+    def summarize_job(self, job_id: str) -> JobRecord:
+        if not self.store.settings.summary_configured:
+            raise ValueError("Summary backend is not configured.")
+
+        job = self.store.get_job(job_id)
+        if self.store.settings.diarization_enabled and self._artifact(job, "speaker_transcript_text") is None:
+            job = self.assemble_speaker_transcript_job(job_id)
+            if job.status == JobStatus.FAILED:
+                return job
+        if self._artifact(job, "transcript_text") is None:
+            job = self.transcribe_job(job_id)
+            if job.status == JobStatus.FAILED:
+                return job
+
+        source_artifact = self._summary_source_artifact(job)
+        if source_artifact is None:
+            raise ValueError("Transcript artifact is required before summarization.")
+
+        running_job = self.store.save_job(
+            job.model_copy(
+                update={
+                    "status": JobStatus.RUNNING,
+                    "current_stage": "summarize",
+                    "error_message": None,
+                }
+            )
+        )
+
+        try:
+            source_text = Path(source_artifact.path).read_text(encoding="utf-8")
+            summary_language = self._resolve_summary_language(running_job)
+            result = self.summarizer.summarize_text(source_text, summary_language=summary_language)
+
+            artifacts_root = self.store.artifacts_root(job_id)
+            summary_json_path = artifacts_root / "summary.json"
+            summary_payload = {
+                "summary": result.structured_data["summary"],
+                "key_points": result.structured_data["key_points"],
+                "decisions": result.structured_data["decisions"],
+                "action_items": result.structured_data["action_items"],
+                "risks": result.structured_data["risks"],
+            }
+            summary_json_path.write_text(
+                json.dumps(summary_payload, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            summary_text_path = artifacts_root / "summary.txt"
+            summary_text_path.write_text(result.text, encoding="utf-8")
+
+            metadata = {
+                "source_artifact_kind": source_artifact.kind,
+                "source_artifact_path": source_artifact.path,
+                "source_artifact_created_at": source_artifact.created_at.isoformat(),
+                "provider_base_url": result.base_url,
+                "model_name": result.model_name,
+                "prompt_version": result.prompt_version,
+                "summary_language": result.summary_language,
+            }
+            staged_job = self.store.replace_artifact(
+                running_job,
+                ArtifactRecord(
+                    kind="summary_json",
+                    path=str(summary_json_path),
+                    metadata=metadata,
+                ),
+            )
+            staged_job = self.store.replace_artifact(
+                staged_job,
+                ArtifactRecord(
+                    kind="summary_text",
+                    path=str(summary_text_path),
+                    metadata=metadata,
+                ),
+            )
+
+            completed_job = staged_job.model_copy(
+                update={
+                    "status": JobStatus.COMPLETED,
+                    "current_stage": "summarized",
+                }
+            )
+            return self.store.save_job(completed_job)
+        except (OpenAICompatibleSummaryError, OSError, ValueError) as exc:
+            failed_job = running_job.model_copy(
+                update={
+                    "status": JobStatus.FAILED,
+                    "current_stage": "summarize",
+                    "error_message": str(exc),
+                }
+            )
+            return self.store.save_job(failed_job)
+
     def _build_speaker_transcript_payload(
         self,
         normalized_audio_path: Path,
@@ -541,3 +644,25 @@ class JobOrchestrator:
             if artifact.kind == kind:
                 return artifact
         return None
+
+    def _summary_source_artifact(self, job: JobRecord) -> ArtifactRecord | None:
+        speaker_transcript = self._artifact(job, "speaker_transcript_text")
+        if speaker_transcript is not None:
+            return speaker_transcript
+        return self._artifact(job, "transcript_text")
+
+    def _resolve_summary_language(self, job: JobRecord) -> str:
+        if job.summary_language:
+            return job.summary_language
+
+        transcript_artifact = self._artifact(job, "transcript_text")
+        if transcript_artifact is not None:
+            language = transcript_artifact.metadata.get("language")
+            if isinstance(language, str) and language.strip() and language != "auto":
+                return language
+
+        if job.transcription_language and job.transcription_language != "auto":
+            return job.transcription_language
+        if self.store.settings.transcription_language != "auto":
+            return self.store.settings.transcription_language
+        return "match-transcript"

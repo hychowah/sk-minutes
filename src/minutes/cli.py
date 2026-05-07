@@ -20,6 +20,7 @@ def _build_parser() -> argparse.ArgumentParser:
     process_parser = subparsers.add_parser("process-file", help="Create a job for a media file and process it end-to-end.")
     process_parser.add_argument("source_path", help="Path to the audio or video file.")
     process_parser.add_argument("--language", default=None, help="Optional transcription language override.")
+    process_parser.add_argument("--summary-language", default=None, help="Optional summary language override.")
 
     transcript_parser = subparsers.add_parser("show-transcript", help="Print the transcript text for a processed job.")
     transcript_parser.add_argument("job_id", help="Job identifier.")
@@ -29,6 +30,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the speaker-attributed transcript when it exists.",
     )
+
+    summary_parser = subparsers.add_parser("show-summary", help="Print the summary text for a processed job.")
+    summary_parser.add_argument("job_id", help="Job identifier.")
+    summary_parser.add_argument("--json", action="store_true", help="Print summary metadata as JSON instead of plain text.")
+
+    summarize_parser = subparsers.add_parser("summarize-job", help="Run or rerun summary generation for an existing job.")
+    summarize_parser.add_argument("job_id", help="Job identifier.")
 
     serve_parser = subparsers.add_parser("serve", help="Run the local web application.")
     serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development.")
@@ -53,6 +61,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "logs_root": str(settings.logs_root),
             "ffmpeg_bin": str(settings.ffmpeg_bin),
             "ffmpeg_available": settings.ffmpeg_available,
+            "summary_configured": settings.summary_configured,
+            "summary_base_url": settings.summary_base_url,
+            "summary_model": settings.summary_model,
             "diarization_enabled": settings.diarization_enabled,
             "pyannote_model": settings.pyannote_model,
             "diarization_device": settings.diarization_device,
@@ -77,7 +88,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         from minutes.storage.models import CreateJobRequest
 
         store = FileStateStore(settings)
-        job = store.create_job(CreateJobRequest(source_path=args.source_path, language=args.language))
+        job = store.create_job(
+            CreateJobRequest(
+                source_path=args.source_path,
+                language=args.language,
+                summary_language=args.summary_language,
+            )
+        )
         processed = JobOrchestrator(store=store).process_job(job.job_id)
         print(json.dumps(processed.model_dump(mode="json"), indent=2))
         return 0 if processed.status != "failed" else 1
@@ -96,9 +113,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"{label} artifact not found for job {args.job_id}.")
             return 1
 
+        try:
+            text = Path(artifact.path).read_text(encoding="utf-8")
+        except OSError:
+            label = "Speaker-attributed transcript" if args.speaker_attributed else "Transcript"
+            print(f"{label} artifact not found for job {args.job_id}.")
+            return 1
+
         payload = TranscriptResponse(
             job_id=args.job_id,
-            text=Path(artifact.path).read_text(encoding="utf-8"),
+            text=text,
             artifact_path=artifact.path,
             metadata=artifact.metadata,
         )
@@ -107,6 +131,45 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             print(payload.text)
         return 0
+
+    if args.command == "show-summary":
+        from pathlib import Path
+
+        from minutes.storage.file_store import FileStateStore
+        from minutes.storage.models import SummaryResponse
+
+        store = FileStateStore(settings)
+        artifact = store.get_artifact(args.job_id, "summary_text")
+        if artifact is None:
+            print(f"Summary artifact not found for job {args.job_id}.")
+            return 1
+
+        try:
+            text = Path(artifact.path).read_text(encoding="utf-8")
+        except OSError:
+            print(f"Summary artifact not found for job {args.job_id}.")
+            return 1
+
+        payload = SummaryResponse(
+            job_id=args.job_id,
+            text=text,
+            artifact_path=artifact.path,
+            metadata=artifact.metadata,
+        )
+        if args.json:
+            print(json.dumps(payload.model_dump(mode="json"), indent=2, ensure_ascii=False))
+        else:
+            print(payload.text)
+        return 0
+
+    if args.command == "summarize-job":
+        from minutes.orchestrator import JobOrchestrator
+        from minutes.storage.file_store import FileStateStore
+
+        store = FileStateStore(settings)
+        summarized = JobOrchestrator(store=store).summarize_job(args.job_id)
+        print(json.dumps(summarized.model_dump(mode="json"), indent=2))
+        return 0 if summarized.status != "failed" else 1
 
     if args.command == "serve":
         uvicorn.run(

@@ -1,7 +1,7 @@
 - Purpose: Universal repository map for humans and LLMs
 - Scope: Reading order, authority hierarchy, status-source ownership, top-level map, and warnings about temporary or stale docs; excludes implementation details not present in the repo
 - Status: Active
-- Last validated: 2026-05-05
+- Last validated: 2026-05-07
 - Source of truth for: Session-start reading order, authority hierarchy, status-source map, top-level documentation map
 
 # Repository Index
@@ -32,7 +32,7 @@ This is the first file a new human or LLM session should read.
 ## Current Status Sources
 
 - Recent verified truth: [DEVNOTES.md](DEVNOTES.md)
-- Active scoped work: active execution plan, if one exists
+- Active scoped work: No active execution plan currently exists.
 - Reusable technical lessons: [KNOWLEDGE.md](KNOWLEDGE.md)
 - Unresolved debt: [docs/tech-debt.md](docs/tech-debt.md)
 - Stable structure: Unknown yet
@@ -57,6 +57,8 @@ This is the first file a new human or LLM session should read.
 - `python -m minutes process-file C:\path\to\audio.wav`
 - `python -m minutes show-transcript <job_id>`
 - `python -m minutes show-transcript <job_id> --speaker-attributed`
+- `python -m minutes show-summary <job_id>`
+- `python -m minutes summarize-job <job_id>`
 
 ## Temporary And Low-Trust Docs
 
@@ -64,8 +66,8 @@ This is the first file a new human or LLM session should read.
 - Completed plans are historical only.
 - Archived devnotes are historical only.
 - Local scratch files should not be treated as canonical truth.
-- An active execution plan currently exists at [docs/plans/2026-05-05-local-minutes-implementation.md](docs/plans/2026-05-05-local-minutes-implementation.md).
-- No completed plans, archived devnotes, or scratch docs exist yet.
+- No active execution plan currently exists.
+- Completed historical plans currently include [docs/plans/2026-05-05-local-minutes-implementation.md](docs/plans/2026-05-05-local-minutes-implementation.md) and [docs/plans/2026-05-07-summary-stage-implementation.md](docs/plans/2026-05-07-summary-stage-implementation.md).
 
 ## Stable Vs Temporary Documents
 
@@ -82,6 +84,7 @@ Stable documents in this repository currently include:
 Temporary documents in this repository currently include:
 
 - [docs/plans/2026-05-05-local-minutes-implementation.md](docs/plans/2026-05-05-local-minutes-implementation.md)
+- [docs/plans/2026-05-07-summary-stage-implementation.md](docs/plans/2026-05-07-summary-stage-implementation.md)
 - Task-local planning or migration notes, if created later
 
 ## Glossary

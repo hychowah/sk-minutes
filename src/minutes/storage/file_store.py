@@ -33,6 +33,8 @@ class FileStateStore:
         job = JobRecord(
             job_id=uuid4().hex,
             source_path=payload.source_path,
+            transcription_language=payload.language,
+            summary_language=payload.summary_language,
             current_stage="created",
         )
         return self.save_job(job)

@@ -1,10 +1,51 @@
 - Purpose: Rolling recent verified work log
 - Scope: Recent verified changes, validations, and handoff notes; excludes evergreen knowledge, stable architecture, and long-term debt ownership
 - Status: Active
-- Last validated: 2026-05-05
+- Last validated: 2026-05-07
 - Source of truth for: Most recent verified repository state, recent changes, next-session handoff notes
 
 # Development Notes
+
+## 2026-05-07 - Summary Stage Implementation
+
+### What Changed
+
+- Added [src/minutes/adapters/summarizer_openai_compatible.py](src/minutes/adapters/summarizer_openai_compatible.py) with a narrow OpenAI-compatible summary adapter that requests structured JSON and renders a persisted text summary.
+- Switched the summary adapter to the official OpenAI Python client so remote OpenAI-compatible backends can be used directly instead of relying on a hand-rolled HTTP layer.
+- Extended [src/minutes/config.py](src/minutes/config.py), [.env.example](.env.example), and [src/minutes/cli.py](src/minutes/cli.py) with summary backend settings, summary-aware job creation, `show-summary`, and `summarize-job` surfaces.
+- Extended [src/minutes/storage/models.py](src/minutes/storage/models.py) and [src/minutes/storage/file_store.py](src/minutes/storage/file_store.py) so job-owned transcription and summary language fields persist through job creation.
+- Extended [src/minutes/orchestrator.py](src/minutes/orchestrator.py), [src/minutes/worker.py](src/minutes/worker.py), and [src/minutes/api/routes_jobs.py](src/minutes/api/routes_jobs.py) with a persisted summary stage that prefers the speaker-attributed transcript when it exists and writes `summary.json` plus `summary.txt`.
+- Hardened the worker so source-less jobs are no longer treated as actionable by summary or diarization stages.
+- Hardened transcript and summary retrieval so missing artifact files return controlled not-found responses instead of tracebacks.
+- Aligned the checked-in default runtime state root with the documented workspace-local `.minutes-data` path.
+- Changed [.env.example](.env.example) to use a generic OpenAI-compatible summary base URL placeholder instead of a localhost-specific example.
+- Created the new active summary-slice plan at [docs/plans/2026-05-07-summary-stage-implementation.md](docs/plans/2026-05-07-summary-stage-implementation.md) and closed the old foundation plan as historical context.
+- Extended [tests/test_normalization_flow.py](tests/test_normalization_flow.py) with focused summary-stage coverage for source selection, worker pickup, API retrieval, CLI retrieval, and explicit summarize triggering.
+
+### What Was Tried
+
+- Started with the smallest prerequisite fix by persisting job-owned request language fields before adding summary behavior.
+- Kept summary inside the existing artifact-driven monolith instead of activating the placeholder pipeline package or adding a separate service.
+- Made summary generation automatic only when `MINUTES_SUMMARY_BASE_URL` and `MINUTES_SUMMARY_MODEL` are configured.
+- Reused the existing transcript retrieval pattern for summary retrieval rather than introducing a generic retrieval framework.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py::test_create_job_persists_requested_languages` passed.
+- `python -m pytest tests/test_normalization_flow.py -k "summarize or summary_route or show_summary or missing_summary_artifact"` passed with 8 selected tests.
+- `python -m pytest tests/test_normalization_flow.py` passed with 26 tests after the summary-stage changes and hardening fixes.
+- `python -m pytest tests/test_normalization_flow.py -k "summarize or summary_route or show_summary or missing_summary_artifact"` passed again after switching the adapter to the OpenAI client.
+- `python -m minutes show-config` resolved successfully with the workspace-local `.minutes-data` state root.
+- `python -m compileall src` succeeded after the final review-driven fixes.
+- `python -m minutes summarize-job 37faa46a38cb4670a7d46d3d9ffc816e` completed successfully after the summary backend was pointed at a reachable DeepSeek OpenAI-compatible endpoint.
+- `python -m minutes show-summary 37faa46a38cb4670a7d46d3d9ffc816e` returned persisted summary text generated from the existing speaker-attributed transcript artifact.
+
+### Next Session Should Know
+
+- Automatic summarization stays inactive until `MINUTES_SUMMARY_BASE_URL` and `MINUTES_SUMMARY_MODEL` are configured.
+- `MINUTES_SUMMARY_API_KEY` remains optional so local OpenAI-compatible gateways can work without a bearer token.
+- Summary artifacts persist source-artifact provenance metadata, but the repository does not yet auto-invalidate summaries if upstream transcript artifacts change later.
+- Live-provider summary generation is now validated against at least one real OpenAI-compatible backend path using DeepSeek with the official OpenAI client.
 
 ## 2026-05-05 - Sample Output Folder And Commit Alignment
 
@@ -51,7 +92,7 @@
 ### What Was Validated
 
 - `python -m pytest tests/test_normalization_flow.py` passed with 9 tests after the speaker-attributed stage and retrieval updates.
-- `python -m minutes process-file C:\Users\user\OneDrive\Documents\Minutes\file\test1.mp3` completed successfully with `current_stage: speaker_attributed`.
+- `python -m minutes process-file <repo-root>\file\test1.mp3` completed successfully with `current_stage: speaker_attributed`.
 - The successful real run wrote `speaker_transcript.json` and `speaker_transcript.txt` under the workspace-local `.minutes-data` state root.
 
 ### Next Session Should Know
@@ -167,8 +208,8 @@
 - `$env:MINUTES_RUN_REAL_AUDIO_TESTS='1'; python -m pytest tests/test_real_audio_integration.py -m integration` passed against [file/test1.mp3](file/test1.mp3).
 - `python -m pytest tests/test_normalization_flow.py` passes with 7 tests after adding diarization-stage coverage.
 - `python -c "from minutes.adapters.diarizer_pyannote import PyannoteDiarizer; PyannoteDiarizer._ensure_torchaudio_compat(); import pyannote.audio; print(pyannote.audio.__version__)"` succeeded and reported `3.4.0`.
-- `python -m minutes process-file C:\Users\user\OneDrive\Documents\Minutes\file\test1.mp3` now completes successfully with transcription and diarization artifacts written under the workspace-local `.minutes-data` state root.
-- The successful real run recorded `device: cuda:0` for both SenseVoice transcription and pyannote diarization.
+- `python -m minutes process-file <repo-root>\file\test1.mp3` now completes successfully with transcription and diarization artifacts written under the workspace-local `.minutes-data` state root.
+- The successful real run used GPU-backed transcription and diarization in the validated local environment.
 
 ### Next Session Should Know
 

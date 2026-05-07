@@ -20,9 +20,25 @@ class JobWorker:
                 continue
             if job.source_path and self._artifact(job, "transcript_text") is None:
                 return job
-            if self.store.settings.diarization_enabled and self._artifact(job, "diarization_json") is None:
+            if (
+                self.store.settings.diarization_enabled
+                and self._artifact(job, "diarization_json") is None
+                and (job.source_path or self._artifact(job, "normalized_audio") is not None)
+            ):
                 return job
-            if self.store.settings.diarization_enabled and self._artifact(job, "speaker_transcript_text") is None:
+            if (
+                self.store.settings.diarization_enabled
+                and self._artifact(job, "speaker_transcript_text") is None
+                and self._artifact(job, "diarization_json") is not None
+                and self._artifact(job, "transcript_text") is not None
+                and (job.source_path or self._artifact(job, "normalized_audio") is not None)
+            ):
+                return job
+            if (
+                self.store.settings.summary_configured
+                and self._artifact(job, "transcript_text") is not None
+                and self._artifact(job, "summary_text") is None
+            ):
                 return job
         return None
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from minutes.config import Settings, get_settings
 from minutes.orchestrator import JobOrchestrator
 from minutes.storage.file_store import FileStateStore
-from minutes.storage.models import CreateJobRequest, JobRecord, TranscriptResponse
+from minutes.storage.models import CreateJobRequest, JobRecord, SummaryResponse, TranscriptResponse
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -55,9 +55,38 @@ def get_transcript(job_id: str, request: Request, speaker_attributed: bool = Fal
         detail = "Speaker-attributed transcript not found" if speaker_attributed else "Transcript not found"
         raise HTTPException(status_code=404, detail=detail)
 
+    try:
+        text = Path(artifact.path).read_text(encoding="utf-8")
+    except OSError as exc:
+        detail = "Speaker-attributed transcript not found" if speaker_attributed else "Transcript not found"
+        raise HTTPException(status_code=404, detail=detail) from exc
+
     return TranscriptResponse(
         job_id=job_id,
-        text=Path(artifact.path).read_text(encoding="utf-8"),
+        text=text,
+        artifact_path=artifact.path,
+        metadata=artifact.metadata,
+    )
+
+
+@router.get("/{job_id}/summary", response_model=SummaryResponse)
+def get_summary(job_id: str, request: Request) -> SummaryResponse:
+    try:
+        artifact = _store(request).get_artifact(job_id, "summary_text")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Summary not found")
+
+    try:
+        text = Path(artifact.path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail="Summary not found") from exc
+
+    return SummaryResponse(
+        job_id=job_id,
+        text=text,
         artifact_path=artifact.path,
         metadata=artifact.metadata,
     )
@@ -77,6 +106,16 @@ def normalize_job(job_id: str, request: Request) -> JobRecord:
 def transcribe_job(job_id: str, request: Request) -> JobRecord:
     try:
         return _orchestrator(request).transcribe_job(job_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Job or source file not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/{job_id}/summarize", response_model=JobRecord)
+def summarize_job(job_id: str, request: Request) -> JobRecord:
+    try:
+        return _orchestrator(request).summarize_job(job_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Job or source file not found") from exc
     except ValueError as exc:

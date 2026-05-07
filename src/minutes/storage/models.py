@@ -30,6 +30,8 @@ class JobRecord(BaseModel):
     status: JobStatus = JobStatus.QUEUED
     current_stage: str | None = None
     source_path: str | None = None
+    transcription_language: str | None = None
+    summary_language: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     artifacts: list[ArtifactRecord] = Field(default_factory=list)
@@ -39,9 +41,17 @@ class JobRecord(BaseModel):
 class CreateJobRequest(BaseModel):
     source_path: str | None = None
     language: str | None = None
+    summary_language: str | None = None
 
 
 class TranscriptResponse(BaseModel):
+    job_id: str
+    text: str
+    artifact_path: str
+    metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+
+
+class SummaryResponse(BaseModel):
     job_id: str
     text: str
     artifact_path: str

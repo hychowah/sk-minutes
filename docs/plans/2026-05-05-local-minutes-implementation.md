@@ -10,7 +10,7 @@ Initial Local Minutes Implementation
 
 ## Status
 
-Active
+Complete
 
 ## Created Date
 
@@ -18,7 +18,7 @@ Active
 
 ## Last Updated Date
 
-2026-05-05
+2026-05-07
 
 ## Branch
 
@@ -30,7 +30,7 @@ Feature
 
 ## Goal
 
-Create the first runnable Python foundation for a local transcription and summarization application based on SenseVoice, pyannote 3.1, and an OpenAI-compatible summary backend.
+Create the first runnable Python foundation for a local transcription pipeline based on SenseVoice and pyannote 3.1.
 
 ## Success Criteria
 
@@ -42,12 +42,12 @@ Create the first runnable Python foundation for a local transcription and summar
 
 ## Non-Goals
 
-- Final summary generation integration.
+- Final summary generation integration inside this foundation plan.
 - Final packaging or installer work.
 
 ## Current Checkpoint
 
-Foundation scaffold, local scripts, file-backed job state, normalization orchestration, transcription orchestration, transcript retrieval, opt-in diarization plus speaker-attributed assembly orchestration, worker execution, real-audio CLI plus fixture-based integration tests, and a committed example output set under `sample/test1` are validated. Next slice should add summarization on top of the validated transcript artifacts.
+Foundation scaffold, local scripts, file-backed job state, normalization orchestration, transcription orchestration, transcript retrieval, opt-in diarization plus speaker-attributed assembly orchestration, worker execution, real-audio CLI plus fixture-based integration tests, and a committed example output set under `sample/test1` are validated. Follow-on summary work now lives in [docs/plans/2026-05-07-summary-stage-implementation.md](2026-05-07-summary-stage-implementation.md).
 
 ## Context To Read First
 
@@ -112,6 +112,7 @@ Foundation scaffold, local scripts, file-backed job state, normalization orchest
 - 2026-05-05: Added an opt-in pyannote diarization stage, validated the fake-diarizer pipeline path, and confirmed pyannote import works with a torchaudio compatibility shim.
 - 2026-05-05: Added speaker-attributed transcript assembly, hardened it against very short diarization windows, and validated retrieval through the existing CLI and API surfaces.
 - 2026-05-05: Added a curated committed sample output set under `sample/test1` based on the validated real run of `file/test1.mp3`.
+- 2026-05-07: Closed this foundation plan and split ongoing summary work into [docs/plans/2026-05-07-summary-stage-implementation.md](2026-05-07-summary-stage-implementation.md).
 
 ## Decision Log
 
@@ -119,7 +120,7 @@ Foundation scaffold, local scripts, file-backed job state, normalization orchest
 
 ## Open Questions
 
-- Live summarization still needs an OpenAI-compatible provider choice, request shape, and prompt contract.
+- No open questions remain inside this foundation plan. Summary-stage questions moved to [docs/plans/2026-05-07-summary-stage-implementation.md](2026-05-07-summary-stage-implementation.md).
 
 ## Risks
 
@@ -134,6 +135,7 @@ Foundation scaffold, local scripts, file-backed job state, normalization orchest
 - The existing transcript retrieval surfaces can now return speaker-attributed text without direct artifact browsing.
 - The repository-local `file/test1.mp3` fixture remains the safest repeatable path for real-audio validation.
 - A curated example output set from that validated real run now lives under `sample/test1` for commit-safe inspection and downstream development.
+- Summary implementation continues in [docs/plans/2026-05-07-summary-stage-implementation.md](2026-05-07-summary-stage-implementation.md).
 
 ## Done Bar
 
@@ -141,4 +143,4 @@ Foundation scaffold, local scripts, file-backed job state, normalization orchest
 
 ## Archive Note
 
-- Move this file only after the done bar is met for the larger implementation effort and final validation is recorded.
+- This file is now historical foundation context. Do not treat it as the active plan for new implementation slices.
