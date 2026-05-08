@@ -96,32 +96,40 @@ class OpenAICompatibleSummarizer:
         return "\n\n".join(blocks)
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
-        try:
-            response = self._client.chat.completions.create(**payload)
-            return response.model_dump(mode="json")
-        except APITimeoutError as exc:
-            raise OpenAICompatibleSummaryError("Summary backend request timed out.") from exc
-        except APIConnectionError as exc:
-            message = str(getattr(exc, "message", "") or exc)
-            base_url = str(self.settings.summary_base_url or "")
-            cause = str(exc.__cause__) if exc.__cause__ is not None else ""
-            details = f"Summary backend connection failed for {base_url}."
-            if message and message != "Connection error.":
-                details = f"{details} {message}"
-            if cause:
-                details = f"{details} Cause: {cause}"
-            raise OpenAICompatibleSummaryError(details) from exc
-        except APIStatusError as exc:
-            body = getattr(exc, "body", None)
-            if body is None:
-                detail = str(exc)
-            elif isinstance(body, str):
-                detail = body
-            else:
-                detail = json.dumps(body, ensure_ascii=False)
-            raise OpenAICompatibleSummaryError(f"Summary backend HTTP {exc.status_code}: {detail}") from exc
-        except json.JSONDecodeError as exc:
-            raise OpenAICompatibleSummaryError("Summary backend returned invalid JSON.") from exc
+        max_attempts = max(self.settings.summary_max_retries, 0) + 1
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = self._client.chat.completions.create(**payload)
+                return response.model_dump(mode="json")
+            except APITimeoutError as exc:
+                if attempt >= max_attempts:
+                    raise OpenAICompatibleSummaryError(
+                        f"Summary backend request timed out after {attempt} attempt(s)."
+                    ) from exc
+            except APIConnectionError as exc:
+                if attempt >= max_attempts:
+                    message = str(getattr(exc, "message", "") or exc)
+                    base_url = str(self.settings.summary_base_url or "")
+                    cause = str(exc.__cause__) if exc.__cause__ is not None else ""
+                    details = f"Summary backend connection failed for {base_url} after {attempt} attempt(s)."
+                    if message and message != "Connection error.":
+                        details = f"{details} {message}"
+                    if cause:
+                        details = f"{details} Cause: {cause}"
+                    raise OpenAICompatibleSummaryError(details) from exc
+            except APIStatusError as exc:
+                body = getattr(exc, "body", None)
+                if body is None:
+                    detail = str(exc)
+                elif isinstance(body, str):
+                    detail = body
+                else:
+                    detail = json.dumps(body, ensure_ascii=False)
+                raise OpenAICompatibleSummaryError(f"Summary backend HTTP {exc.status_code}: {detail}") from exc
+            except json.JSONDecodeError as exc:
+                raise OpenAICompatibleSummaryError("Summary backend returned invalid JSON.") from exc
+
+        raise OpenAICompatibleSummaryError("Summary backend request failed without a response.")
 
     @staticmethod
     def _extract_content(response_payload: dict[str, Any]) -> str:

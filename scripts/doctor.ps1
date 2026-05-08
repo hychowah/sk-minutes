@@ -11,7 +11,7 @@ if (-not (Test-Path $PythonExe)) {
 $StateRoot = if ($env:MINUTES_STATE_ROOT) {
     $env:MINUTES_STATE_ROOT
 } else {
-    Join-Path $env:USERPROFILE 'MinutesData'
+    Join-Path $RepoRoot '.minutes-data'
 }
 
 $ConfiguredFfmpeg = if ($env:MINUTES_FFMPEG_BIN) {

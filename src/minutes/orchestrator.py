@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from time import perf_counter
 
 from minutes.adapters.diarizer_pyannote import PyannoteDiarizationError, PyannoteDiarizer
 from minutes.adapters.ffmpeg import FfmpegAdapter, FfmpegError
 from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer, OpenAICompatibleSummaryError
 from minutes.adapters.transcriber_sensevoice import SenseVoiceError, SenseVoiceTranscriber
+from minutes.pipeline import StageName, next_pending_stage
 from minutes.storage.file_store import FileStateStore
 from minutes.storage.models import ArtifactRecord, JobRecord, JobStatus
 
@@ -29,24 +31,25 @@ class JobOrchestrator:
 
     def process_job(self, job_id: str) -> JobRecord:
         job = self.store.get_job(job_id)
-        if self._artifact(job, "normalized_audio") is None:
-            job = self.normalize_job(job_id)
-        if job.status == JobStatus.FAILED:
-            return job
-        if self._artifact(job, "transcript_text") is None:
-            job = self.transcribe_job(job_id)
-        if job.status == JobStatus.FAILED:
-            return job
-        if self.store.settings.diarization_enabled and self._artifact(job, "diarization_json") is None:
-            job = self.diarize_job(job_id)
-        if job.status == JobStatus.FAILED:
-            return job
-        if self.store.settings.diarization_enabled and self._artifact(job, "speaker_transcript_text") is None:
-            job = self.assemble_speaker_transcript_job(job_id)
-        if job.status == JobStatus.FAILED:
-            return job
-        if self.store.settings.summary_configured and self._artifact(job, "summary_text") is None:
-            job = self.summarize_job(job_id)
+        while True:
+            pending_stage = next_pending_stage(job, self.store.settings)
+            if pending_stage is None:
+                return job
+            if pending_stage == StageName.NORMALIZE:
+                job = self.normalize_job(job_id)
+            elif pending_stage == StageName.TRANSCRIBE:
+                job = self.transcribe_job(job_id)
+            elif pending_stage == StageName.DIARIZE:
+                job = self.diarize_job(job_id)
+            elif pending_stage == StageName.ASSEMBLE_SPEAKERS:
+                job = self.assemble_speaker_transcript_job(job_id)
+            elif pending_stage == StageName.SUMMARIZE:
+                job = self.summarize_job(job_id)
+            else:
+                return job
+
+            if job.status == JobStatus.FAILED:
+                return job
         return job
 
     def normalize_job(self, job_id: str) -> JobRecord:
@@ -58,14 +61,7 @@ class JobOrchestrator:
         if not source_path.exists():
             raise FileNotFoundError(source_path)
 
-        running_job = job.model_copy(
-            update={
-                "status": JobStatus.RUNNING,
-                "current_stage": "normalize",
-                "error_message": None,
-            }
-        )
-        running_job = self.store.save_job(running_job)
+        running_job = self._mark_running(job, StageName.NORMALIZE)
 
         try:
             artifacts_root = self.store.artifacts_root(job_id)
@@ -100,22 +96,9 @@ class JobOrchestrator:
                 ),
             )
 
-            normalized_job = staged_job.model_copy(
-                update={
-                    "status": JobStatus.QUEUED,
-                    "current_stage": "normalized",
-                }
-            )
-            return self.store.save_job(normalized_job)
+            return self._complete_stage(staged_job, StageName.NORMALIZED)
         except (FfmpegError, OSError, json.JSONDecodeError) as exc:
-            failed_job = running_job.model_copy(
-                update={
-                    "status": JobStatus.FAILED,
-                    "current_stage": "normalize",
-                    "error_message": str(exc),
-                }
-            )
-            return self.store.save_job(failed_job)
+            return self._fail_stage(running_job, StageName.NORMALIZE, exc)
 
     def transcribe_job(self, job_id: str) -> JobRecord:
         job = self.store.get_job(job_id)
@@ -128,15 +111,7 @@ class JobOrchestrator:
         if normalized_audio is None:
             raise ValueError("Normalized audio artifact is required before transcription.")
 
-        running_job = self.store.save_job(
-            job.model_copy(
-                update={
-                    "status": JobStatus.RUNNING,
-                    "current_stage": "transcribe",
-                    "error_message": None,
-                }
-            )
-        )
+        running_job = self._mark_running(job, StageName.TRANSCRIBE)
 
         try:
             artifacts_root = self.store.artifacts_root(job_id)
@@ -177,22 +152,9 @@ class JobOrchestrator:
                 ),
             )
 
-            completed_job = staged_job.model_copy(
-                update={
-                    "status": JobStatus.COMPLETED,
-                    "current_stage": "transcribed",
-                }
-            )
-            return self.store.save_job(completed_job)
+            return self._complete_stage(staged_job, StageName.TRANSCRIBED)
         except (SenseVoiceError, OSError) as exc:
-            failed_job = running_job.model_copy(
-                update={
-                    "status": JobStatus.FAILED,
-                    "current_stage": "transcribe",
-                    "error_message": str(exc),
-                }
-            )
-            return self.store.save_job(failed_job)
+            return self._fail_stage(running_job, StageName.TRANSCRIBE, exc)
 
     def diarize_job(self, job_id: str) -> JobRecord:
         if not self.store.settings.diarization_enabled:
@@ -208,15 +170,7 @@ class JobOrchestrator:
         if normalized_audio is None:
             raise ValueError("Normalized audio artifact is required before diarization.")
 
-        running_job = self.store.save_job(
-            job.model_copy(
-                update={
-                    "status": JobStatus.RUNNING,
-                    "current_stage": "diarize",
-                    "error_message": None,
-                }
-            )
-        )
+        running_job = self._mark_running(job, StageName.DIARIZE)
 
         try:
             artifacts_root = self.store.artifacts_root(job_id)
@@ -272,22 +226,9 @@ class JobOrchestrator:
                 ),
             )
 
-            completed_job = staged_job.model_copy(
-                update={
-                    "status": JobStatus.COMPLETED,
-                    "current_stage": "diarized",
-                }
-            )
-            return self.store.save_job(completed_job)
+            return self._complete_stage(staged_job, StageName.DIARIZED)
         except (PyannoteDiarizationError, OSError) as exc:
-            failed_job = running_job.model_copy(
-                update={
-                    "status": JobStatus.FAILED,
-                    "current_stage": "diarize",
-                    "error_message": str(exc),
-                }
-            )
-            return self.store.save_job(failed_job)
+            return self._fail_stage(running_job, StageName.DIARIZE, exc)
 
     def assemble_speaker_transcript_job(self, job_id: str) -> JobRecord:
         if not self.store.settings.diarization_enabled:
@@ -316,15 +257,7 @@ class JobOrchestrator:
         if normalized_audio is None or transcript_text is None or diarization_json is None:
             raise ValueError("Normalized audio, transcript, and diarization artifacts are required before speaker transcript assembly.")
 
-        running_job = self.store.save_job(
-            job.model_copy(
-                update={
-                    "status": JobStatus.RUNNING,
-                    "current_stage": "assemble_speakers",
-                    "error_message": None,
-                }
-            )
-        )
+        running_job = self._mark_running(job, StageName.ASSEMBLE_SPEAKERS)
 
         try:
             artifacts_root = self.store.artifacts_root(job_id)
@@ -383,22 +316,9 @@ class JobOrchestrator:
                 ),
             )
 
-            completed_job = staged_job.model_copy(
-                update={
-                    "status": JobStatus.COMPLETED,
-                    "current_stage": "speaker_attributed",
-                }
-            )
-            return self.store.save_job(completed_job)
+            return self._complete_stage(staged_job, StageName.SPEAKER_ATTRIBUTED)
         except (OSError, ValueError, json.JSONDecodeError, SenseVoiceError) as exc:
-            failed_job = running_job.model_copy(
-                update={
-                    "status": JobStatus.FAILED,
-                    "current_stage": "assemble_speakers",
-                    "error_message": str(exc),
-                }
-            )
-            return self.store.save_job(failed_job)
+            return self._fail_stage(running_job, StageName.ASSEMBLE_SPEAKERS, exc)
 
     def summarize_job(self, job_id: str) -> JobRecord:
         if not self.store.settings.summary_configured:
@@ -418,20 +338,14 @@ class JobOrchestrator:
         if source_artifact is None:
             raise ValueError("Transcript artifact is required before summarization.")
 
-        running_job = self.store.save_job(
-            job.model_copy(
-                update={
-                    "status": JobStatus.RUNNING,
-                    "current_stage": "summarize",
-                    "error_message": None,
-                }
-            )
-        )
+        running_job = self._mark_running(job, StageName.SUMMARIZE)
 
         try:
             source_text = Path(source_artifact.path).read_text(encoding="utf-8")
             summary_language = self._resolve_summary_language(running_job)
+            started_at = perf_counter()
             result = self.summarizer.summarize_text(source_text, summary_language=summary_language)
+            summary_elapsed_ms = round((perf_counter() - started_at) * 1000, 3)
 
             artifacts_root = self.store.artifacts_root(job_id)
             summary_json_path = artifacts_root / "summary.json"
@@ -458,6 +372,9 @@ class JobOrchestrator:
                 "model_name": result.model_name,
                 "prompt_version": result.prompt_version,
                 "summary_language": result.summary_language,
+                "summary_elapsed_ms": summary_elapsed_ms,
+                "summary_timeout_seconds": self.store.settings.summary_timeout_seconds,
+                "summary_max_retries": self.store.settings.summary_max_retries,
             }
             staged_job = self.store.replace_artifact(
                 running_job,
@@ -476,22 +393,51 @@ class JobOrchestrator:
                 ),
             )
 
-            completed_job = staged_job.model_copy(
-                update={
-                    "status": JobStatus.COMPLETED,
-                    "current_stage": "summarized",
-                }
-            )
-            return self.store.save_job(completed_job)
+            return self._complete_stage(staged_job, StageName.SUMMARIZED)
         except (OpenAICompatibleSummaryError, OSError, ValueError) as exc:
-            failed_job = running_job.model_copy(
-                update={
-                    "status": JobStatus.FAILED,
-                    "current_stage": "summarize",
-                    "error_message": str(exc),
-                }
-            )
-            return self.store.save_job(failed_job)
+            return self._fail_stage(running_job, StageName.SUMMARIZE, exc)
+
+    def _mark_running(self, job: JobRecord, active_stage: StageName) -> JobRecord:
+        running_job = job.model_copy(
+            update={
+                "status": JobStatus.RUNNING,
+                "workflow_stage": self._workflow_stage(job),
+                "current_stage": active_stage,
+                "error_message": None,
+            }
+        )
+        return self.store.save_job(running_job)
+
+    def _complete_stage(self, job: JobRecord, completed_stage: StageName) -> JobRecord:
+        completed_job = job.model_copy(
+            update={
+                "workflow_stage": completed_stage,
+                "error_message": None,
+            }
+        )
+        pending_stage = next_pending_stage(completed_job, self.store.settings)
+        completed_job = completed_job.model_copy(
+            update={
+                "status": JobStatus.COMPLETED if pending_stage is None else JobStatus.QUEUED,
+                "current_stage": completed_stage if pending_stage is None else pending_stage,
+            }
+        )
+        return self.store.save_job(completed_job)
+
+    def _fail_stage(self, job: JobRecord, failed_stage: StageName, exc: Exception) -> JobRecord:
+        failed_job = job.model_copy(
+            update={
+                "status": JobStatus.FAILED,
+                "workflow_stage": self._workflow_stage(job),
+                "current_stage": failed_stage,
+                "error_message": str(exc),
+            }
+        )
+        return self.store.save_job(failed_job)
+
+    @staticmethod
+    def _workflow_stage(job: JobRecord) -> str | None:
+        return job.workflow_stage or job.current_stage
 
     def _build_speaker_transcript_payload(
         self,
@@ -533,14 +479,13 @@ class JobOrchestrator:
             if clip.size == 0:
                 continue
 
-            with NamedTemporaryFile(dir=temp_root, prefix=f"{index:03d}_{segment['speaker']}_", suffix=".wav", delete=False) as temp_file:
-                temp_path = Path(temp_file.name)
-
-            try:
-                soundfile.write(str(temp_path), clip, sample_rate)
-                transcription = self.transcriber.transcribe_file(temp_path)
-            finally:
-                temp_path.unlink(missing_ok=True)
+            transcription = self._transcribe_speaker_clip(
+                clip=clip,
+                sample_rate=sample_rate,
+                temp_root=temp_root,
+                index=index,
+                speaker=str(segment["speaker"]),
+            )
 
             text = transcription.text.strip()
             if not text:
@@ -557,6 +502,37 @@ class JobOrchestrator:
             )
 
         return payload
+
+    @staticmethod
+    def _clip_input(clip):
+        if clip.ndim == 2 and clip.shape[1] == 1:
+            return clip[:, 0]
+        return clip
+
+    def _transcribe_speaker_clip(
+        self,
+        *,
+        clip,
+        sample_rate: int,
+        temp_root: Path,
+        index: int,
+        speaker: str,
+    ):
+        try:
+            clip_input = self._clip_input(clip)
+            return self.transcriber.transcribe_waveform(clip_input)
+        except (AttributeError, SenseVoiceError, ValueError, RuntimeError):
+            temp_root.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile(dir=temp_root, prefix=f"{index:03d}_{speaker}_", suffix=".wav", delete=False) as temp_file:
+                temp_path = Path(temp_file.name)
+
+            try:
+                import soundfile
+
+                soundfile.write(str(temp_path), clip, sample_rate)
+                return self.transcriber.transcribe_file(temp_path)
+            finally:
+                temp_path.unlink(missing_ok=True)
 
     @staticmethod
     def _clip_bounds_for_transcription(

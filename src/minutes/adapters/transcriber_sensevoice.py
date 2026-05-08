@@ -32,12 +32,22 @@ class SenseVoiceTranscriber:
         if not source.exists():
             raise FileNotFoundError(source)
 
+        return self._transcribe_input(str(source), language=language)
+
+    def transcribe_waveform(self, waveform: Any, language: str | None = None) -> TranscriptionResult:
+        return self._transcribe_input(waveform, language=language)
+
+    def _transcribe_input(self, input_value: Any, language: str | None = None) -> TranscriptionResult:
+        result = self._generate(input_value, language=language)
+        return self._build_result(result, language=language)
+
+    def _generate(self, input_value: Any, language: str | None = None) -> list[dict[str, Any]]:
         model = self._get_model()
         selected_language = language or self.settings.transcription_language
 
         try:
             result = model.generate(
-                input=str(source),
+                input=input_value,
                 cache={},
                 language=selected_language,
                 use_itn=self.settings.transcription_use_itn,
@@ -45,9 +55,14 @@ class SenseVoiceTranscriber:
                 merge_vad=self.settings.transcription_merge_vad,
                 merge_length_s=self.settings.transcription_merge_length_s,
             )
-            processed_text = self._rich_postprocess(result[0]["text"] if result else "")
         except Exception as exc:  # pragma: no cover - upstream exception types vary
             raise SenseVoiceError(str(exc)) from exc
+
+        return result
+
+    def _build_result(self, result: list[dict[str, Any]], language: str | None = None) -> TranscriptionResult:
+        selected_language = language or self.settings.transcription_language
+        processed_text = self._rich_postprocess(result[0]["text"] if result else "")
 
         return TranscriptionResult(
             text=processed_text,

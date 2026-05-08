@@ -17,10 +17,10 @@ Execution plans are temporary, task-scoped documents for work that spans multipl
 ## Where Plans Live
 
 - Use `docs/plans/` for plan templates and plan files.
-- No active scoped plan currently exists.
+- An active scoped plan currently exists at [active/workflow-contract-and-interface-coherence.md](active/workflow-contract-and-interface-coherence.md).
 - No completed scoped plan files are currently retained.
-- If active and completed plan folders are added later, active plans should live under `docs/plans/active/` and completed plans should move to `docs/plans/completed/`.
-- Those folders do not exist yet because the current plan volume is still manageable directly under `docs/plans/`.
+- Active plans live under `docs/plans/active/`.
+- If completed plan folders are added later, completed plans should move to `docs/plans/completed/`.
 
 ## Relationship To Other Docs
 

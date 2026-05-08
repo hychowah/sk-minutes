@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     summary_model: str | None = None
     summary_prompt_version: str = "v1"
     summary_timeout_seconds: int = 120
+    summary_max_retries: int = 1
     summary_temperature: float = 0.1
     diarization_enabled: bool = False
     pyannote_model: str = "pyannote/speaker-diarization-3.1"

@@ -33,5 +33,6 @@ def test_process_file_fixture_mp3() -> None:
     transcript_text = Path(transcript_artifact["path"]).read_text(encoding="utf-8").strip()
 
     assert payload["status"] == "completed"
+    assert payload["workflow_stage"] == "transcribed"
     assert payload["current_stage"] == "transcribed"
     assert transcript_text

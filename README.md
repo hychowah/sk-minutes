@@ -69,6 +69,13 @@ To process the next queued job once from the CLI:
 python -m minutes run-once
 ```
 
+To inspect persisted jobs from the CLI:
+
+```powershell
+python -m minutes list-jobs
+python -m minutes show-job <job_id>
+```
+
 To create a job for one media file and process it through normalization plus transcription:
 
 ```powershell
@@ -99,13 +106,19 @@ To print the summary text for an existing processed job:
 python -m minutes show-summary <job_id>
 ```
 
+To inspect summary metadata and freshness details for an existing processed job:
+
+```powershell
+python -m minutes show-summary <job_id> --json
+```
+
 To run or rerun summary generation for an existing job after configuring the summary backend:
 
 ```powershell
 python -m minutes summarize-job <job_id>
 ```
 
-The API route `GET /api/jobs/{job_id}/summary` returns the persisted summary text, and `POST /api/jobs/{job_id}/summarize` runs or reruns the summary stage for one job.
+The API route `GET /api/jobs/{job_id}/summary` returns the persisted summary text plus summary metadata. When a current summary source is selected, the JSON response also exposes `source_current`, `current_source_artifact_kind`, and `current_source_artifact_path`. `POST /api/jobs/{job_id}/summarize` runs or reruns the summary stage for one job.
 
 ## Test
 

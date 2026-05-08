@@ -23,15 +23,15 @@ class FileStateStore:
         return root
 
     def list_jobs(self) -> list[JobRecord]:
-        jobs: list[JobRecord] = []
-        for job_file in sorted(self.jobs_root.glob("*/job.json"), reverse=True):
-            jobs.append(self._read_job(job_file))
+        jobs = [self._read_job(job_file) for job_file in self.jobs_root.glob("*/job.json")]
+        jobs.sort(key=lambda job: (job.updated_at, job.created_at, job.job_id), reverse=True)
         return jobs
 
     def create_job(self, request: CreateJobRequest | None = None) -> JobRecord:
         payload = request or CreateJobRequest()
         job = JobRecord(
             job_id=uuid4().hex,
+            workflow_stage="created",
             source_path=payload.source_path,
             transcription_language=payload.language,
             summary_language=payload.summary_language,

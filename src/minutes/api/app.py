@@ -5,10 +5,14 @@ from fastapi import FastAPI
 from minutes import __version__
 from minutes.api.routes_jobs import router as jobs_router
 from minutes.config import Settings, get_settings
+from minutes.orchestrator import JobOrchestrator
+from minutes.storage.file_store import FileStateStore
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
+    store = FileStateStore(resolved_settings)
+    orchestrator = JobOrchestrator(store=store)
 
     app = FastAPI(
         title=resolved_settings.app_name,
@@ -17,6 +21,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url="/redoc",
     )
     app.state.settings = resolved_settings
+    app.state.store = store
+    app.state.orchestrator = orchestrator
     app.include_router(jobs_router)
 
     @app.get("/healthz", tags=["system"])

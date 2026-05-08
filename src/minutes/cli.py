@@ -15,6 +15,9 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("show-config", help="Print resolved runtime configuration.")
+    subparsers.add_parser("list-jobs", help="List persisted jobs.")
+    show_job_parser = subparsers.add_parser("show-job", help="Print one persisted job record.")
+    show_job_parser.add_argument("job_id", help="Job identifier.")
     subparsers.add_parser("run-once", help="Process the next queued job once.")
 
     process_parser = subparsers.add_parser("process-file", help="Create a job for a media file and process it end-to-end.")
@@ -64,6 +67,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "summary_configured": settings.summary_configured,
             "summary_base_url": settings.summary_base_url,
             "summary_model": settings.summary_model,
+            "summary_timeout_seconds": settings.summary_timeout_seconds,
+            "summary_max_retries": settings.summary_max_retries,
             "diarization_enabled": settings.diarization_enabled,
             "pyannote_model": settings.pyannote_model,
             "diarization_device": settings.diarization_device,
@@ -71,7 +76,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(payload, indent=2))
         return 0
 
+    if args.command == "list-jobs":
+        from minutes.job_view import to_job_response_list
+        from minutes.storage.file_store import FileStateStore
+
+        jobs = FileStateStore(settings).list_jobs()
+        payload = to_job_response_list(jobs, settings)
+        print(json.dumps([job.model_dump(mode="json") for job in payload], indent=2))
+        return 0
+
+    if args.command == "show-job":
+        from minutes.job_view import to_job_response
+        from minutes.storage.file_store import FileStateStore
+
+        store = FileStateStore(settings)
+        try:
+            job = store.get_job(args.job_id)
+        except FileNotFoundError:
+            print(f"Job not found: {args.job_id}")
+            return 1
+
+        print(json.dumps(to_job_response(job, settings).model_dump(mode="json"), indent=2))
+        return 0
+
     if args.command == "run-once":
+        from minutes.job_view import to_job_response
         from minutes.worker import JobWorker
 
         job = JobWorker().run_once()
@@ -79,10 +108,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("No queued jobs available.")
             return 0
 
-        print(json.dumps(job.model_dump(mode="json"), indent=2))
+        print(json.dumps(to_job_response(job, settings).model_dump(mode="json"), indent=2))
         return 0
 
     if args.command == "process-file":
+        from minutes.job_view import to_job_response
         from minutes.orchestrator import JobOrchestrator
         from minutes.storage.file_store import FileStateStore
         from minutes.storage.models import CreateJobRequest
@@ -96,36 +126,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         processed = JobOrchestrator(store=store).process_job(job.job_id)
-        print(json.dumps(processed.model_dump(mode="json"), indent=2))
+        print(json.dumps(to_job_response(processed, settings).model_dump(mode="json"), indent=2))
         return 0 if processed.status != "failed" else 1
 
     if args.command == "show-transcript":
-        from pathlib import Path
-
+        from minutes.queries import ArtifactLookupError, JobLookupError, get_transcript_response
         from minutes.storage.file_store import FileStateStore
-        from minutes.storage.models import TranscriptResponse
 
         store = FileStateStore(settings)
-        artifact_kind = "speaker_transcript_text" if args.speaker_attributed else "transcript_text"
-        artifact = store.get_artifact(args.job_id, artifact_kind)
-        if artifact is None:
-            label = "Speaker-attributed transcript" if args.speaker_attributed else "Transcript"
-            print(f"{label} artifact not found for job {args.job_id}.")
-            return 1
-
         try:
-            text = Path(artifact.path).read_text(encoding="utf-8")
-        except OSError:
-            label = "Speaker-attributed transcript" if args.speaker_attributed else "Transcript"
-            print(f"{label} artifact not found for job {args.job_id}.")
+            payload = get_transcript_response(store, args.job_id, speaker_attributed=args.speaker_attributed)
+        except JobLookupError:
+            print(f"Job not found: {args.job_id}")
             return 1
-
-        payload = TranscriptResponse(
-            job_id=args.job_id,
-            text=text,
-            artifact_path=artifact.path,
-            metadata=artifact.metadata,
-        )
+        except ArtifactLookupError as exc:
+            print(exc.cli_message)
+            return 1
         if args.json:
             print(json.dumps(payload.model_dump(mode="json"), indent=2, ensure_ascii=False))
         else:
@@ -133,29 +149,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "show-summary":
-        from pathlib import Path
-
+        from minutes.queries import ArtifactLookupError, JobLookupError, get_summary_response
         from minutes.storage.file_store import FileStateStore
-        from minutes.storage.models import SummaryResponse
 
         store = FileStateStore(settings)
-        artifact = store.get_artifact(args.job_id, "summary_text")
-        if artifact is None:
-            print(f"Summary artifact not found for job {args.job_id}.")
-            return 1
-
         try:
-            text = Path(artifact.path).read_text(encoding="utf-8")
-        except OSError:
-            print(f"Summary artifact not found for job {args.job_id}.")
+            payload = get_summary_response(store, args.job_id)
+        except JobLookupError:
+            print(f"Job not found: {args.job_id}")
             return 1
-
-        payload = SummaryResponse(
-            job_id=args.job_id,
-            text=text,
-            artifact_path=artifact.path,
-            metadata=artifact.metadata,
-        )
+        except ArtifactLookupError as exc:
+            print(exc.cli_message)
+            return 1
         if args.json:
             print(json.dumps(payload.model_dump(mode="json"), indent=2, ensure_ascii=False))
         else:
@@ -163,12 +168,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "summarize-job":
+        from minutes.job_view import to_job_response
         from minutes.orchestrator import JobOrchestrator
         from minutes.storage.file_store import FileStateStore
 
         store = FileStateStore(settings)
         summarized = JobOrchestrator(store=store).summarize_job(args.job_id)
-        print(json.dumps(summarized.model_dump(mode="json"), indent=2))
+        print(json.dumps(to_job_response(summarized, settings).model_dump(mode="json"), indent=2))
         return 0 if summarized.status != "failed" else 1
 
     if args.command == "serve":
