@@ -11,7 +11,7 @@
 - The repository has only an initial implementation foundation so far.
 - Summary integration is validated against at least one OpenAI-compatible backend, but activation still depends on configuring the summary base URL and model.
 - pyannote diarization requires a Hugging Face token with accepted model conditions before live runs can succeed.
-- The validated local setup in this repository keeps runtime state under `.minutes-data` in the workspace root and ignores it through git.
+- The repository keeps runtime state under `.minutes-data` in the workspace root and ignores it through git.
 
 ## Patterns To Reuse
 
@@ -20,11 +20,11 @@
 - Separate stable reference docs from temporary task docs.
 - Validate each new implementation slice with the narrowest executable check available before widening scope.
 - Commit only curated example outputs under `sample/`; keep full runtime artifacts in the gitignored `.minutes-data` state root.
-- Prefer a normal user-owned state root over `%LOCALAPPDATA%` when external binaries need to read and write the same files on this Windows setup.
+- Prefer a normal user-owned state root over `%LOCALAPPDATA%` when external binaries need to read and write the same files on Windows.
 - Add a focused regression test as soon as a new execution path becomes real, especially for file and process orchestration.
 - Persist job-owned request fields in the stored job record as soon as downstream stages depend on them, or later feature flags and language overrides will be lost across worker boundaries.
 - Treat downstream LLM stages as artifact-driven text derivations and record source-artifact provenance in their output metadata.
-- On this Windows setup, FunASR may call `ffmpeg` by name during audio loading even when the app already knows the explicit binary path, so the configured ffmpeg directory must also be injected into `PATH` before transcription.
+- On Windows, FunASR may call `ffmpeg` by name during audio loading even when the app already knows the explicit binary path, so the configured ffmpeg directory must also be injected into `PATH` before transcription.
 - Keep heavyweight real-model audio tests opt-in and fixture-based so they are reproducible without slowing every normal test run.
 - When pyannote is used with the current torch and torchaudio stack in this repo, compatibility shims may be required because pyannote 3.x still expects older torchaudio top-level APIs.
 - On Windows, SpeechBrain lazy imports can also be tripped accidentally by Python's `inspect` path handling, so guard patches may be needed before pyannote model loading succeeds.

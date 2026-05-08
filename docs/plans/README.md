@@ -1,7 +1,7 @@
 - Purpose: Explain execution plan usage in this repository
 - Scope: When to create a plan, where plans belong, and how plans relate to other docs; excludes task content itself
 - Status: Active
-- Last validated: 2026-05-07
+- Last validated: 2026-05-08
 - Source of truth for: Execution plan lifecycle and usage rules
 
 # Execution Plans
@@ -18,8 +18,7 @@ Execution plans are temporary, task-scoped documents for work that spans multipl
 
 - Use `docs/plans/` for plan templates and plan files.
 - No active scoped plan currently exists.
-- The most recent completed scoped plan lives directly at [docs/plans/2026-05-07-summary-stage-implementation.md](2026-05-07-summary-stage-implementation.md).
-- [docs/plans/2026-05-05-local-minutes-implementation.md](2026-05-05-local-minutes-implementation.md) is now historical foundation context.
+- No completed scoped plan files are currently retained.
 - If active and completed plan folders are added later, active plans should live under `docs/plans/active/` and completed plans should move to `docs/plans/completed/`.
 - Those folders do not exist yet because the current plan volume is still manageable directly under `docs/plans/`.
 
@@ -28,3 +27,4 @@ Execution plans are temporary, task-scoped documents for work that spans multipl
 - Plans do not replace [DEVNOTES.md](../../DEVNOTES.md) for repo-wide recent truth.
 - Plans do not replace [INDEX.md](../../INDEX.md) for repository map and authority rules.
 - Plans should link to stable owner docs instead of copying them.
+- Completed plan files may be deleted once stable facts have been moved into the owner documents.

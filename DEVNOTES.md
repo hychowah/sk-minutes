@@ -1,7 +1,7 @@
 - Purpose: Rolling recent verified work log
 - Scope: Recent verified changes, validations, and handoff notes; excludes evergreen knowledge, stable architecture, and long-term debt ownership
 - Status: Active
-- Last validated: 2026-05-07
+- Last validated: 2026-05-08
 - Source of truth for: Most recent verified repository state, recent changes, next-session handoff notes
 
 # Development Notes
@@ -19,7 +19,7 @@
 - Hardened transcript and summary retrieval so missing artifact files return controlled not-found responses instead of tracebacks.
 - Aligned the checked-in default runtime state root with the documented workspace-local `.minutes-data` path.
 - Changed [.env.example](.env.example) to use a generic OpenAI-compatible summary base URL placeholder instead of a localhost-specific example.
-- Created the new active summary-slice plan at [docs/plans/2026-05-07-summary-stage-implementation.md](docs/plans/2026-05-07-summary-stage-implementation.md) and closed the old foundation plan as historical context.
+- Created a temporary summary-slice plan during implementation and later removed the completed plan file after stable owner docs were updated.
 - Extended [tests/test_normalization_flow.py](tests/test_normalization_flow.py) with focused summary-stage coverage for source selection, worker pickup, API retrieval, CLI retrieval, and explicit summarize triggering.
 
 ### What Was Tried
@@ -37,7 +37,7 @@
 - `python -m pytest tests/test_normalization_flow.py -k "summarize or summary_route or show_summary or missing_summary_artifact"` passed again after switching the adapter to the OpenAI client.
 - `python -m minutes show-config` resolved successfully with the workspace-local `.minutes-data` state root.
 - `python -m compileall src` succeeded after the final review-driven fixes.
-- `python -m minutes summarize-job 37faa46a38cb4670a7d46d3d9ffc816e` completed successfully after the summary backend was pointed at a reachable DeepSeek OpenAI-compatible endpoint.
+- `python -m minutes summarize-job 37faa46a38cb4670a7d46d3d9ffc816e` completed successfully after the summary backend was pointed at a reachable OpenAI-compatible endpoint.
 - `python -m minutes show-summary 37faa46a38cb4670a7d46d3d9ffc816e` returned persisted summary text generated from the existing speaker-attributed transcript artifact.
 
 ### Next Session Should Know
@@ -45,7 +45,7 @@
 - Automatic summarization stays inactive until `MINUTES_SUMMARY_BASE_URL` and `MINUTES_SUMMARY_MODEL` are configured.
 - `MINUTES_SUMMARY_API_KEY` remains optional so local OpenAI-compatible gateways can work without a bearer token.
 - Summary artifacts persist source-artifact provenance metadata, but the repository does not yet auto-invalidate summaries if upstream transcript artifacts change later.
-- Live-provider summary generation is now validated against at least one real OpenAI-compatible backend path using DeepSeek with the official OpenAI client.
+- Live-provider summary generation is now validated against at least one real OpenAI-compatible backend path using the official OpenAI client.
 
 ## 2026-05-05 - Sample Output Folder And Commit Alignment
 
@@ -54,7 +54,7 @@
 - Added a curated committed sample output set under [sample/test1](sample/test1) using artifacts from the validated `file/test1.mp3` real run.
 - Added [sample/README.md](sample/README.md), [sample/test1/metadata.json](sample/test1/metadata.json), [sample/test1/transcript.txt](sample/test1/transcript.txt), and [sample/test1/speaker_transcript.txt](sample/test1/speaker_transcript.txt).
 - Updated [.gitignore](.gitignore) so bulky copied artifacts such as normalized WAV files and per-speaker scratch folders remain untracked even if future examples are staged under `sample/`.
-- Updated [README.md](README.md), [INDEX.md](INDEX.md), [KNOWLEDGE.md](KNOWLEDGE.md), [docs/plans/README.md](docs/plans/README.md), and [docs/plans/2026-05-05-local-minutes-implementation.md](docs/plans/2026-05-05-local-minutes-implementation.md) to match the current repository state for commit.
+- Updated [README.md](README.md), [INDEX.md](INDEX.md), [KNOWLEDGE.md](KNOWLEDGE.md), and [docs/plans/README.md](docs/plans/README.md) to match the current repository state for commit.
 
 ### What Was Tried
 
@@ -106,7 +106,7 @@
 ### What Changed
 
 - Updated [README.md](README.md) to remove machine-specific wording from setup and test guidance.
-- Updated [README.md](README.md) and [docs/plans/2026-05-05-local-minutes-implementation.md](docs/plans/2026-05-05-local-minutes-implementation.md) to replace `*-first` wording with more neutral phrasing.
+- Updated [README.md](README.md) and the temporary plan docs that existed at the time to replace `*-first` wording with more neutral phrasing.
 
 ### What Was Tried
 
@@ -187,7 +187,7 @@
 - Added fake-diarizer coverage so the staged pipeline can validate normalization, transcription, and opt-in diarization without requiring a Hugging Face token.
 - Exercised a real pyannote-backed run with a configured Hugging Face token and advanced past token access, hub auth, torchaudio API, PyTorch serialization, and SpeechBrain lazy-import issues.
 - Switched pyannote audio input to an in-memory waveform payload so the Windows runtime no longer depends on `torchcodec` file loading.
-- Replaced the CPU-only `torch` and `torchaudio` wheels with CUDA-enabled Windows wheels and verified GPU execution on the local RTX 4070.
+- Replaced the CPU-only `torch` and `torchaudio` wheels with CUDA-enabled Windows wheels and verified GPU execution in the local environment.
 - Fixed Windows subprocess decoding in the ffmpeg adapter by forcing UTF-8 with replacement during command capture.
 
 ### What Was Validated
@@ -209,7 +209,7 @@
 - `python -m pytest tests/test_normalization_flow.py` passes with 7 tests after adding diarization-stage coverage.
 - `python -c "from minutes.adapters.diarizer_pyannote import PyannoteDiarizer; PyannoteDiarizer._ensure_torchaudio_compat(); import pyannote.audio; print(pyannote.audio.__version__)"` succeeded and reported `3.4.0`.
 - `python -m minutes process-file <repo-root>\file\test1.mp3` now completes successfully with transcription and diarization artifacts written under the workspace-local `.minutes-data` state root.
-- The successful real run used GPU-backed transcription and diarization in the validated local environment.
+- The successful real run used GPU-backed transcription and diarization in a validated local environment.
 
 ### Next Session Should Know
 

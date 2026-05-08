@@ -1,7 +1,7 @@
 - Purpose: Universal repository map for humans and LLMs
 - Scope: Reading order, authority hierarchy, status-source ownership, top-level map, and warnings about temporary or stale docs; excludes implementation details not present in the repo
 - Status: Active
-- Last validated: 2026-05-07
+- Last validated: 2026-05-08
 - Source of truth for: Session-start reading order, authority hierarchy, status-source map, top-level documentation map
 
 # Repository Index
@@ -67,7 +67,7 @@ This is the first file a new human or LLM session should read.
 - Archived devnotes are historical only.
 - Local scratch files should not be treated as canonical truth.
 - No active execution plan currently exists.
-- Completed historical plans currently include [docs/plans/2026-05-05-local-minutes-implementation.md](docs/plans/2026-05-05-local-minutes-implementation.md) and [docs/plans/2026-05-07-summary-stage-implementation.md](docs/plans/2026-05-07-summary-stage-implementation.md).
+- No completed plan files are currently retained.
 
 ## Stable Vs Temporary Documents
 
@@ -83,8 +83,6 @@ Stable documents in this repository currently include:
 
 Temporary documents in this repository currently include:
 
-- [docs/plans/2026-05-05-local-minutes-implementation.md](docs/plans/2026-05-05-local-minutes-implementation.md)
-- [docs/plans/2026-05-07-summary-stage-implementation.md](docs/plans/2026-05-07-summary-stage-implementation.md)
 - Task-local planning or migration notes, if created later
 
 ## Glossary
