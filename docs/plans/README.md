@@ -18,7 +18,7 @@ Execution plans are temporary, task-scoped documents for work that spans multipl
 
 - Use `docs/plans/` for plan templates and plan files.
 - No active scoped plan currently exists.
-- A completed scoped plan is retained at [completed/workflow-contract-and-interface-coherence.md](completed/workflow-contract-and-interface-coherence.md) for history.
+- Completed scoped plans retained for history include [completed/mp-004-startup-hotspot-investigation.md](completed/mp-004-startup-hotspot-investigation.md) and [completed/workflow-contract-and-interface-coherence.md](completed/workflow-contract-and-interface-coherence.md).
 - Active plans live under `docs/plans/active/`.
 - Completed plans retained for history live under `docs/plans/completed/`.
 

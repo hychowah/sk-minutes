@@ -4,14 +4,17 @@ import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import perf_counter
+from typing import TYPE_CHECKING
 
-from minutes.adapters.diarizer_pyannote import PyannoteDiarizationError, PyannoteDiarizer
-from minutes.adapters.ffmpeg import FfmpegAdapter, FfmpegError
-from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer, OpenAICompatibleSummaryError
-from minutes.adapters.transcriber_sensevoice import SenseVoiceError, SenseVoiceTranscriber
 from minutes.pipeline import StageName, next_pending_stage, summary_source_artifact
 from minutes.storage.file_store import FileStateStore
 from minutes.storage.models import ArtifactRecord, JobRecord, JobStatus
+
+if TYPE_CHECKING:
+    from minutes.adapters.diarizer_pyannote import PyannoteDiarizer
+    from minutes.adapters.ffmpeg import FfmpegAdapter
+    from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer
+    from minutes.adapters.transcriber_sensevoice import SenseVoiceTranscriber
 
 
 class JobOrchestrator:
@@ -24,10 +27,42 @@ class JobOrchestrator:
         summarizer: OpenAICompatibleSummarizer | None = None,
     ) -> None:
         self.store = store or FileStateStore()
-        self.ffmpeg = ffmpeg or FfmpegAdapter(self.store.settings)
-        self.transcriber = transcriber or SenseVoiceTranscriber(self.store.settings)
-        self.diarizer = diarizer or PyannoteDiarizer(self.store.settings)
-        self.summarizer = summarizer or OpenAICompatibleSummarizer(self.store.settings)
+        self._ffmpeg = ffmpeg
+        self._transcriber = transcriber
+        self._diarizer = diarizer
+        self._summarizer = summarizer
+
+    @property
+    def ffmpeg(self) -> FfmpegAdapter:
+        if self._ffmpeg is None:
+            from minutes.adapters.ffmpeg import FfmpegAdapter
+
+            self._ffmpeg = FfmpegAdapter(self.store.settings)
+        return self._ffmpeg
+
+    @property
+    def transcriber(self) -> SenseVoiceTranscriber:
+        if self._transcriber is None:
+            from minutes.adapters.transcriber_sensevoice import SenseVoiceTranscriber
+
+            self._transcriber = SenseVoiceTranscriber(self.store.settings)
+        return self._transcriber
+
+    @property
+    def diarizer(self) -> PyannoteDiarizer:
+        if self._diarizer is None:
+            from minutes.adapters.diarizer_pyannote import PyannoteDiarizer
+
+            self._diarizer = PyannoteDiarizer(self.store.settings)
+        return self._diarizer
+
+    @property
+    def summarizer(self) -> OpenAICompatibleSummarizer:
+        if self._summarizer is None:
+            from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer
+
+            self._summarizer = OpenAICompatibleSummarizer(self.store.settings)
+        return self._summarizer
 
     def process_job(self, job_id: str) -> JobRecord:
         job = self.store.get_job(job_id)
@@ -97,7 +132,7 @@ class JobOrchestrator:
             )
 
             return self._complete_stage(staged_job, StageName.NORMALIZED)
-        except (FfmpegError, OSError, json.JSONDecodeError) as exc:
+        except self._normalize_stage_errors() as exc:
             return self._fail_stage(running_job, StageName.NORMALIZE, exc)
 
     def transcribe_job(self, job_id: str) -> JobRecord:
@@ -153,7 +188,7 @@ class JobOrchestrator:
             )
 
             return self._complete_stage(staged_job, StageName.TRANSCRIBED)
-        except (SenseVoiceError, OSError) as exc:
+        except self._transcribe_stage_errors() as exc:
             return self._fail_stage(running_job, StageName.TRANSCRIBE, exc)
 
     def diarize_job(self, job_id: str) -> JobRecord:
@@ -227,7 +262,7 @@ class JobOrchestrator:
             )
 
             return self._complete_stage(staged_job, StageName.DIARIZED)
-        except (PyannoteDiarizationError, OSError) as exc:
+        except self._diarize_stage_errors() as exc:
             return self._fail_stage(running_job, StageName.DIARIZE, exc)
 
     def assemble_speaker_transcript_job(self, job_id: str) -> JobRecord:
@@ -317,7 +352,7 @@ class JobOrchestrator:
             )
 
             return self._complete_stage(staged_job, StageName.SPEAKER_ATTRIBUTED)
-        except (OSError, ValueError, json.JSONDecodeError, SenseVoiceError) as exc:
+        except self._speaker_assembly_errors() as exc:
             return self._fail_stage(running_job, StageName.ASSEMBLE_SPEAKERS, exc)
 
     def summarize_job(self, job_id: str) -> JobRecord:
@@ -394,7 +429,7 @@ class JobOrchestrator:
             )
 
             return self._complete_stage(staged_job, StageName.SUMMARIZED)
-        except (OpenAICompatibleSummaryError, OSError, ValueError) as exc:
+        except self._summarize_stage_errors() as exc:
             return self._fail_stage(running_job, StageName.SUMMARIZE, exc)
 
     def _mark_running(self, job: JobRecord, active_stage: StageName) -> JobRecord:
@@ -514,7 +549,7 @@ class JobOrchestrator:
         try:
             clip_input = self._clip_input(clip)
             return self.transcriber.transcribe_waveform(clip_input)
-        except (AttributeError, SenseVoiceError, ValueError, RuntimeError):
+        except self._speaker_clip_transcription_errors():
             temp_root.mkdir(parents=True, exist_ok=True)
             with NamedTemporaryFile(dir=temp_root, prefix=f"{index:03d}_{speaker}_", suffix=".wav", delete=False) as temp_file:
                 temp_path = Path(temp_file.name)
@@ -526,6 +561,42 @@ class JobOrchestrator:
                 return self.transcriber.transcribe_file(temp_path)
             finally:
                 temp_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _normalize_stage_errors():
+        from minutes.adapters.ffmpeg import FfmpegError
+
+        return (FfmpegError, OSError, json.JSONDecodeError)
+
+    @staticmethod
+    def _transcribe_stage_errors():
+        from minutes.adapters.transcriber_sensevoice import SenseVoiceError
+
+        return (SenseVoiceError, OSError)
+
+    @staticmethod
+    def _diarize_stage_errors():
+        from minutes.adapters.diarizer_pyannote import PyannoteDiarizationError
+
+        return (PyannoteDiarizationError, OSError)
+
+    @staticmethod
+    def _speaker_assembly_errors():
+        from minutes.adapters.transcriber_sensevoice import SenseVoiceError
+
+        return (OSError, ValueError, json.JSONDecodeError, SenseVoiceError)
+
+    @staticmethod
+    def _speaker_clip_transcription_errors():
+        from minutes.adapters.transcriber_sensevoice import SenseVoiceError
+
+        return (AttributeError, SenseVoiceError, ValueError, RuntimeError)
+
+    @staticmethod
+    def _summarize_stage_errors():
+        from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummaryError
+
+        return (OpenAICompatibleSummaryError, OSError, ValueError)
 
     @staticmethod
     def _clip_bounds_for_transcription(

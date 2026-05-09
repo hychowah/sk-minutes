@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import statistics
 import sys
 import tempfile
@@ -17,14 +18,137 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from minutes.api.app import create_app
-from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer
-from minutes.adapters.transcriber_sensevoice import SenseVoiceTranscriber
 from minutes.config import Settings
-from minutes.orchestrator import JobOrchestrator
 from minutes.storage.file_store import FileStateStore
 from minutes.storage.models import ArtifactRecord, CreateJobRequest, JobRecord, JobStatus
-from minutes.worker import JobWorker
+
+
+CLI_IMPORT_PROBE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+src_root = repo_root / \"src\"
+if str(src_root) not in sys.path:
+    sys.path.insert(0, str(src_root))
+
+cli_started = time.perf_counter()
+import minutes.cli
+cli_import_ms = (time.perf_counter() - cli_started) * 1000
+
+print(json.dumps({
+    \"cli_import_ms\": round(cli_import_ms, 3),
+    \"loaded_modules\": {
+        \"config\": \"minutes.config\" in sys.modules,
+        \"uvicorn\": \"uvicorn\" in sys.modules,
+        \"api_app\": \"minutes.api.app\" in sys.modules,
+        \"ffmpeg\": \"minutes.adapters.ffmpeg\" in sys.modules,
+        \"transcriber\": \"minutes.adapters.transcriber_sensevoice\" in sys.modules,
+        \"diarizer\": \"minutes.adapters.diarizer_pyannote\" in sys.modules,
+        \"summarizer\": \"minutes.adapters.summarizer_openai_compatible\" in sys.modules,
+    },
+}))
+"""
+
+
+CONFIG_IMPORT_PROBE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+src_root = repo_root / \"src\"
+if str(src_root) not in sys.path:
+    sys.path.insert(0, str(src_root))
+
+config_started = time.perf_counter()
+import minutes.config
+config_import_ms = (time.perf_counter() - config_started) * 1000
+
+print(json.dumps({
+    \"config_import_ms\": round(config_import_ms, 3),
+}))
+"""
+
+
+SETTINGS_INIT_PROBE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+state_root = Path(sys.argv[2])
+src_root = repo_root / \"src\"
+if str(src_root) not in sys.path:
+    sys.path.insert(0, str(src_root))
+
+from minutes.config import get_settings
+
+started = time.perf_counter()
+settings = get_settings.__wrapped__()
+settings = settings.model_copy(update={\"state_root\": state_root})
+settings.ensure_state_dirs()
+settings_init_ms = (time.perf_counter() - started) * 1000
+
+print(json.dumps({
+    \"settings_init_ms\": round(settings_init_ms, 3),
+    \"state_root_exists\": state_root.exists(),
+}))
+"""
+
+
+ORCHESTRATOR_IMPORT_PROBE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+src_root = repo_root / \"src\"
+if str(src_root) not in sys.path:
+    sys.path.insert(0, str(src_root))
+
+orchestrator_started = time.perf_counter()
+from minutes.orchestrator import JobOrchestrator
+orchestrator_import_ms = (time.perf_counter() - orchestrator_started) * 1000
+
+print(json.dumps({
+    \"orchestrator_import_ms\": round(orchestrator_import_ms, 3),
+}))
+"""
+
+
+ORCHESTRATOR_CONSTRUCT_PROBE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+state_root = Path(sys.argv[2])
+src_root = repo_root / \"src\"
+if str(src_root) not in sys.path:
+    sys.path.insert(0, str(src_root))
+
+from minutes.config import Settings
+from minutes.storage.file_store import FileStateStore
+from minutes.orchestrator import JobOrchestrator
+
+settings = Settings(state_root=state_root)
+settings.ensure_state_dirs()
+
+construct_started = time.perf_counter()
+JobOrchestrator(store=FileStateStore(settings))
+orchestrator_construct_ms = (time.perf_counter() - construct_started) * 1000
+
+print(json.dumps({
+    \"orchestrator_construct_ms\": round(orchestrator_construct_ms, 3),
+}))
+"""
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -49,6 +173,12 @@ def _build_parser() -> argparse.ArgumentParser:
     api_transcription.add_argument("audio_path", help="Path to the input audio file.")
     api_transcription.add_argument("--language", default=None, help="Optional transcription language override.")
 
+    startup_path = subparsers.add_parser(
+        "startup-path",
+        help="Measure fresh-process CLI and orchestrator startup on the process-file path.",
+    )
+    startup_path.add_argument("--iterations", type=int, default=5, help="Number of fresh-process samples to collect.")
+
     summary = subparsers.add_parser("summary", help="Measure summary latency against one transcript file.")
     summary.add_argument("transcript_path", help="Path to the transcript text file.")
     summary.add_argument("--summary-language", default="match-transcript", help="Summary output language.")
@@ -72,6 +202,8 @@ def main() -> int:
         payload = measure_transcription(Path(args.audio_path), language=args.language)
     elif args.command == "api-transcription":
         payload = measure_api_transcription(Path(args.audio_path), language=args.language)
+    elif args.command == "startup-path":
+        payload = measure_startup_path(iterations=args.iterations)
     elif args.command == "summary":
         payload = measure_summary(Path(args.transcript_path), summary_language=args.summary_language, iterations=args.iterations)
     elif args.command == "speaker-assembly":
@@ -89,6 +221,8 @@ def main() -> int:
 
 
 def measure_control_plane(*, job_count: int, iterations: int, scenario: str) -> dict[str, Any]:
+    from minutes.worker import JobWorker
+
     with tempfile.TemporaryDirectory(prefix="minutes-measure-") as temp_dir:
         settings = Settings(
             state_root=Path(temp_dir) / "state",
@@ -129,6 +263,53 @@ def measure_control_plane(*, job_count: int, iterations: int, scenario: str) -> 
         "list_jobs_ms": _stats(list_jobs_samples),
         "next_actionable_job_ms": _stats(next_actionable_samples),
     }
+
+
+def measure_startup_path(*, iterations: int) -> dict[str, Any]:
+    config_import_samples: list[float] = []
+    cli_import_samples: list[float] = []
+    settings_init_samples: list[float] = []
+    orchestrator_import_samples: list[float] = []
+    orchestrator_construct_samples: list[float] = []
+    loaded_modules: dict[str, bool] | None = None
+
+    with tempfile.TemporaryDirectory(prefix="minutes-startup-measure-") as temp_dir:
+        for index in range(iterations):
+            state_root = Path(temp_dir) / f"state-{index}"
+            config_payload = _run_startup_probe(CONFIG_IMPORT_PROBE, str(REPO_ROOT))
+            cli_payload = _run_startup_probe(CLI_IMPORT_PROBE, str(REPO_ROOT))
+            settings_payload = _run_startup_probe(SETTINGS_INIT_PROBE, str(REPO_ROOT), str(state_root))
+            orchestrator_import_payload = _run_startup_probe(ORCHESTRATOR_IMPORT_PROBE, str(REPO_ROOT))
+            orchestrator_construct_payload = _run_startup_probe(ORCHESTRATOR_CONSTRUCT_PROBE, str(REPO_ROOT), str(state_root))
+
+            config_import_samples.append(float(config_payload["config_import_ms"]))
+            cli_import_samples.append(float(cli_payload["cli_import_ms"]))
+            settings_init_samples.append(float(settings_payload["settings_init_ms"]))
+            orchestrator_import_samples.append(float(orchestrator_import_payload["orchestrator_import_ms"]))
+            orchestrator_construct_samples.append(float(orchestrator_construct_payload["orchestrator_construct_ms"]))
+            loaded_modules = dict(cli_payload["loaded_modules"])
+
+    return {
+        "command": "startup-path",
+        "iterations": iterations,
+        "config_import_ms": _stats(config_import_samples),
+        "cli_import_ms": _stats(cli_import_samples),
+        "settings_init_ms": _stats(settings_init_samples),
+        "orchestrator_import_ms": _stats(orchestrator_import_samples),
+        "orchestrator_construct_ms": _stats(orchestrator_construct_samples),
+        "loaded_modules": loaded_modules,
+    }
+
+
+def _run_startup_probe(probe: str, *probe_args: str) -> dict[str, Any]:
+    result = subprocess.run(
+        [sys.executable, "-c", probe, *probe_args],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    return json.loads(result.stdout)
 
 
 def _seed_control_plane_jobs(store: FileStateStore, *, job_count: int, scenario: str) -> str | None:
@@ -180,6 +361,8 @@ def _create_summary_control_plane_job(store: FileStateStore, *, stale: bool) -> 
 
 
 def measure_transcription(audio_path: Path, *, language: str | None) -> dict[str, Any]:
+    from minutes.adapters.transcriber_sensevoice import SenseVoiceTranscriber
+
     settings = Settings()
     settings.ensure_state_dirs()
     transcriber = SenseVoiceTranscriber(settings)
@@ -206,6 +389,8 @@ def measure_transcription(audio_path: Path, *, language: str | None) -> dict[str
 
 
 def measure_api_transcription(audio_path: Path, *, language: str | None) -> dict[str, Any]:
+    from minutes.api.app import create_app
+
     with tempfile.TemporaryDirectory(prefix="minutes-api-measure-") as temp_dir:
         settings = Settings(state_root=Path(temp_dir) / "state")
         settings.ensure_state_dirs()
@@ -238,6 +423,8 @@ def measure_api_transcription(audio_path: Path, *, language: str | None) -> dict
 
 
 def measure_summary(transcript_path: Path, *, summary_language: str, iterations: int) -> dict[str, Any]:
+    from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer
+
     settings = Settings()
     settings.ensure_state_dirs()
     summarizer = OpenAICompatibleSummarizer(settings)
@@ -271,6 +458,8 @@ def measure_speaker_assembly(
     diarization_json_path: Path,
     transcript_path: Path | None,
 ) -> dict[str, Any]:
+    from minutes.orchestrator import JobOrchestrator
+
     with tempfile.TemporaryDirectory(prefix="minutes-assembly-") as temp_dir:
         settings = Settings(state_root=Path(temp_dir) / "state", diarization_enabled=True)
         settings.ensure_state_dirs()

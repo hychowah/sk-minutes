@@ -6,6 +6,113 @@
 
 # Development Notes
 
+## 2026-05-09 - Roadmap Doc Removal
+
+### What Changed
+
+- Removed the former roadmap coordination docs `docs/master-plan.md` and `docs/progress-tracker.md`.
+- Updated [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), [docs/tech-debt.md](docs/tech-debt.md), [docs/plans/completed/mp-004-startup-hotspot-investigation.md](docs/plans/completed/mp-004-startup-hotspot-investigation.md), [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md), and the affected history entries in [DEVNOTES.md](DEVNOTES.md) so the repository no longer links to deleted roadmap files.
+
+### What Was Tried
+
+- Kept the existing ownership model instead of inventing replacement roadmap docs: [INDEX.md](INDEX.md) now carries the current maintenance posture, [DEVNOTES.md](DEVNOTES.md) remains the recent verified truth, and [docs/tech-debt.md](docs/tech-debt.md) continues to own unresolved maintenance debt.
+
+### What Was Validated
+
+- Targeted search confirmed the deleted roadmap files are no longer referenced as live documentation links in the stable docs.
+
+### Next Session Should Know
+
+- The repository no longer has separate roadmap coordination docs under `docs/`; use [INDEX.md](INDEX.md), [DEVNOTES.md](DEVNOTES.md), [docs/README.md](docs/README.md), and [docs/tech-debt.md](docs/tech-debt.md) instead.
+
+## 2026-05-09 - Roadmap Maintenance Transition
+
+### What Changed
+
+- Updated the then-current roadmap coordination docs, together with [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), and [docs/tech-debt.md](docs/tech-debt.md), so the stable docs described maintenance posture and reopen triggers instead of implying an unfinished forward roadmap.
+- Updated the historical handoff note in [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md) so it no longer assumes there must be a next active workstream.
+
+### What Was Tried
+
+- Kept the stable owner documents themselves `Active`, because in this repo that status describes the document lifecycle rather than whether the roadmap is finished.
+- Left TD-002 open in [docs/tech-debt.md](docs/tech-debt.md) as maintenance debt instead of forcing the roadmap itself to stay artificially incomplete.
+
+### What Was Validated
+
+- Cross-checked the then-current roadmap docs together with [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), [docs/tech-debt.md](docs/tech-debt.md), and [DEVNOTES.md](DEVNOTES.md) so the roadmap completion language stayed consistent with the no-active-plan state and the remaining open debt signal.
+
+### Next Session Should Know
+
+- The roadmap baseline is now documented as complete for the current scope, and the repository should be treated as maintained rather than mid-roadmap.
+- Remaining work should reopen a workstream only when a regression, dependency break, measured hotspot, or explicit scope change justifies it.
+
+## 2026-05-09 - MP-004 Startup Plan Closeout
+
+### What Changed
+
+- Moved the finished scoped startup plan to [docs/plans/completed/mp-004-startup-hotspot-investigation.md](docs/plans/completed/mp-004-startup-hotspot-investigation.md) and updated [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), [docs/plans/README.md](docs/plans/README.md), and the then-current roadmap coordination docs so the repository no longer claims there is active scoped work when there is not.
+- Updated [docs/tech-debt.md](docs/tech-debt.md) so TD-004 is now resolved: the repo has a startup-specific measurement path, one verified mitigation, and an explicit decision not to replace `pydantic-settings` for startup alone.
+
+### What Was Tried
+
+- Treated the split `startup-path` benchmark as the decision point rather than pushing one more speculative startup refactor into the configuration layer.
+- Chose to keep the current configuration framework because the remaining measured cost is import-time framework overhead, while first settings initialization and orchestrator construction are both already cheap.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py` passed with 42 tests before closing the scoped startup plan.
+
+### Next Session Should Know
+
+- There is no active scoped execution plan currently; the finished startup plan is now historical at [docs/plans/completed/mp-004-startup-hotspot-investigation.md](docs/plans/completed/mp-004-startup-hotspot-investigation.md).
+- Reopen MP-004 only if a broader configuration simplification effort or another measured hotspot justifies more performance work.
+
+## 2026-05-09 - Startup Path Benchmark Baseline
+
+### What Changed
+
+- Updated [scripts/measure_local.py](scripts/measure_local.py) with a new `startup-path` command that launches a fresh Python child process and measures the `process-file` startup boundary around `minutes.cli` import, `minutes.orchestrator` import, and `JobOrchestrator` construction.
+- Kept the startup probe subprocess-based so its reported timings are not polluted by the benchmark runner process already importing the code under test.
+- Extended [tests/test_normalization_flow.py](tests/test_normalization_flow.py) with a focused regression that asserts the new benchmark command returns the expected JSON shape and still reports the optional adapter modules as unloaded after importing the CLI and constructing `JobOrchestrator`.
+
+### What Was Tried
+
+- Moved the heavier benchmark-only imports in [scripts/measure_local.py](scripts/measure_local.py) into the functions that use them so the script can dispatch the new startup probe without eagerly importing every benchmark dependency first.
+- Measured the startup boundary in a child interpreter instead of trying to reuse the parent `measure_local.py` process, because the parent process would otherwise warm the imports being measured.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py -k "measure_local_startup_path_reports_import_boundary or orchestrator_import_leaves_optional_adapters_unloaded"` passed with 2 selected tests.
+- `python scripts/measure_local.py startup-path --iterations 3` reported `cli_import_ms` median `235.830`, `orchestrator_import_ms` median `8.865`, and `orchestrator_construct_ms` median `0.321`, with `uvicorn`, `minutes.api.app`, `minutes.adapters.ffmpeg`, `minutes.adapters.transcriber_sensevoice`, `minutes.adapters.diarizer_pyannote`, and `minutes.adapters.summarizer_openai_compatible` all still absent from `sys.modules` after the probe.
+- After splitting that probe further, `python scripts/measure_local.py startup-path --iterations 3` reported `config_import_ms` median `244.550`, `cli_import_ms` median `230.501`, `settings_init_ms` median `4.777`, `orchestrator_import_ms` median `236.673`, and `orchestrator_construct_ms` median `0.256`, showing that importing [src/minutes/config.py](src/minutes/config.py) now dominates the measured startup boundary while first settings construction and orchestrator construction are both small.
+
+### Next Session Should Know
+
+- The repo now has a validated startup-specific benchmark path for the `process-file` import boundary.
+- After the lazy-loading slice, the remaining measured cost in this probe is no longer default adapter construction or first `get_settings()` work; the next likely startup follow-up is the [src/minutes/config.py](src/minutes/config.py) import path itself, which currently pulls in `pydantic` and `pydantic-settings` on every fresh process start.
+
+## 2026-05-09 - Orchestrator Adapter Lazy Loading
+
+### What Changed
+
+- Updated [src/minutes/orchestrator.py](src/minutes/orchestrator.py) so default ffmpeg, transcriber, diarizer, and summarizer adapters are now imported and constructed lazily instead of at module import and `JobOrchestrator` construction time.
+- Extended [tests/test_normalization_flow.py](tests/test_normalization_flow.py) with a subprocess regression that proves importing and constructing `JobOrchestrator` leaves the diarizer, summarizer, and transcriber adapter modules unloaded until a stage actually needs them.
+- Created the active MP-004 startup plan at [docs/plans/active/mp-004-startup-hotspot-investigation.md](docs/plans/active/mp-004-startup-hotspot-investigation.md) and updated [INDEX.md](INDEX.md) plus [docs/plans/README.md](docs/plans/README.md) so the repository now points to the active scoped work correctly.
+
+### What Was Tried
+
+- Kept the orchestrator constructor signature and injected test seams intact, then changed only the default adapter path behind property accessors.
+- Left measurement work for the next adjacent slice because [scripts/measure_local.py](scripts/measure_local.py) still imports heavy modules at script load and is not yet a clean startup-only benchmark.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py -k "orchestrator_import_leaves_optional_adapters_unloaded or orchestrator_normalizes_job or process_job_summarizes_plain_transcript_when_configured or list_jobs_cli_prints_jobs_as_json or show_job_cli_prints_job_json"` passed with 5 selected tests.
+
+### Next Session Should Know
+
+- The first startup-cost mitigation for TD-004 is now in place, and the new startup-path benchmark now covers the remaining import-boundary evidence gap.
+- The active scoped work now lives at [docs/plans/active/mp-004-startup-hotspot-investigation.md](docs/plans/active/mp-004-startup-hotspot-investigation.md).
+
 ## 2026-05-09 - FunASR Cached Model Reuse
 
 ### What Changed
@@ -57,7 +164,7 @@
 - Updated [src/minutes/storage/models.py](src/minutes/storage/models.py) and [src/minutes/storage/file_store.py](src/minutes/storage/file_store.py) so stored jobs no longer persist the now-obsolete `current_stage` field.
 - Updated [src/minutes/orchestrator.py](src/minutes/orchestrator.py) so the raw stored job record now keeps one `workflow_stage` marker plus `status`, and summary generation now reuses the shared [src/minutes/pipeline/__init__.py](src/minutes/pipeline/__init__.py) `summary_source_artifact` owner instead of a duplicate private helper.
 - Updated [tests/test_normalization_flow.py](tests/test_normalization_flow.py) so internal workflow assertions now use `workflow_stage` and `next_pending_stage` rather than the removed `current_stage` field.
-- Moved the finished scoped plan to [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md) and updated [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), [docs/plans/README.md](docs/plans/README.md), [docs/progress-tracker.md](docs/progress-tracker.md), and [docs/master-plan.md](docs/master-plan.md) so the repository no longer claims there is active scoped work when there is not.
+- Moved the finished scoped plan to [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md) and updated [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), [docs/plans/README.md](docs/plans/README.md), and the then-current roadmap coordination docs so the repository no longer claims there is active scoped work when there is not.
 
 ### What Was Tried
 
@@ -344,7 +451,7 @@
 - Updated [src/minutes/api/routes_jobs.py](src/minutes/api/routes_jobs.py) so the public `POST /api/jobs` surface now rejects requests that omit `source_path`.
 - Kept the internal store path permissive so manual and test-only seeded-artifact workflows can still create source-less jobs when artifacts are injected out-of-band.
 - Added [scripts/measure_local.py](scripts/measure_local.py) as the first lightweight local measurement script with subcommands for synthetic control-plane timings plus opt-in transcription, summary, and speaker-assembly measurements.
-- Updated [INDEX.md](INDEX.md), [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md), and [docs/progress-tracker.md](docs/progress-tracker.md) so the source-less job decision and measurement-path milestone are reflected in the current planning docs.
+- Updated [INDEX.md](INDEX.md), [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md), and the then-current roadmap coordination docs so the source-less job decision and measurement-path milestone are reflected in the current planning docs.
 
 ### What Was Tried
 
@@ -422,7 +529,7 @@
 ### What Changed
 
 - Added [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md) as the historical record of the first scoped workflow and interface cleanup execution plan.
-- Updated [docs/plans/README.md](docs/plans/README.md), [docs/README.md](docs/README.md), [docs/progress-tracker.md](docs/progress-tracker.md), and [INDEX.md](INDEX.md) so the repository documentation reflects the finished scoped plan state.
+- Updated [docs/plans/README.md](docs/plans/README.md), [docs/README.md](docs/README.md), the then-current roadmap coordination docs, and [INDEX.md](INDEX.md) so the repository documentation reflects the finished scoped plan state.
 
 ### What Was Tried
 
@@ -461,8 +568,7 @@
 
 ### What Changed
 
-- Added [docs/master-plan.md](docs/master-plan.md) as the stable repository-level workstream direction and sequencing document.
-- Added [docs/progress-tracker.md](docs/progress-tracker.md) as the high-level progress view across the master-plan workstreams.
+- Added the now-removed roadmap coordination docs for repository-level workstream direction and high-level progress tracking.
 - Updated [INDEX.md](INDEX.md) so the new stable planning docs are part of the documented repository map and status-source ownership.
 
 ### What Was Tried
@@ -477,8 +583,7 @@
 
 ### Next Session Should Know
 
-- [docs/master-plan.md](docs/master-plan.md) is now the stable owner for repository-level sequencing.
-- [docs/progress-tracker.md](docs/progress-tracker.md) is now the high-level coordination view, but recent verified work must still be recorded first in [DEVNOTES.md](DEVNOTES.md).
+- This slice introduced the roadmap coordination docs that were later removed when their ownership was folded back into [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), [DEVNOTES.md](DEVNOTES.md), and [docs/tech-debt.md](docs/tech-debt.md).
 
 ## 2026-05-08 - Workflow Contract And CLI Discovery Cleanup
 

@@ -18,18 +18,16 @@ These documents should point to their owner surfaces instead of duplicating live
 
 ## Documents In This Folder
 
-- [master-plan.md](master-plan.md): long-lived repository workstreams, sequencing, and decision gates.
-- [progress-tracker.md](progress-tracker.md): high-level workstream states and next gates linked back to owner docs.
 - [tech-debt.md](tech-debt.md): unresolved debt inventory and cleanup priorities.
 - [plans/README.md](plans/README.md): rules for temporary scoped execution plans.
+- [plans/completed/mp-004-startup-hotspot-investigation.md](plans/completed/mp-004-startup-hotspot-investigation.md): historical record of the completed MP-004 startup investigation plan.
 - [plans/completed/workflow-contract-and-interface-coherence.md](plans/completed/workflow-contract-and-interface-coherence.md): historical record of the completed workflow and interface cleanup plan.
 - [plans/_EXEC_PLAN_TEMPLATE.md](plans/_EXEC_PLAN_TEMPLATE.md): template for scoped plan files when they are needed.
 
 ## Ownership Rules
 
 - Use [../DEVNOTES.md](../DEVNOTES.md) for recent verified repository truth.
-- Use [master-plan.md](master-plan.md) for long-lived sequencing and workstream direction.
-- Use [progress-tracker.md](progress-tracker.md) for a compact coordination view only.
+- Use [../INDEX.md](../INDEX.md) for repository map and current maintenance posture.
 - Use [tech-debt.md](tech-debt.md) for unresolved debt items.
 - Use documents under [plans/](plans) only for temporary scoped work that needs handoff across sessions or commits.
 

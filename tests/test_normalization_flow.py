@@ -145,6 +145,80 @@ def test_transcriber_model_kwargs_prefer_cached_modelscope_paths(tmp_path: Path,
     assert kwargs["disable_update"] is True
 
 
+def test_orchestrator_import_leaves_optional_adapters_unloaded(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["MINUTES_STATE_ROOT"] = str(tmp_path / "state")
+    env["PYTHONPATH"] = str(Path.cwd() / "src") + os.pathsep + env.get("PYTHONPATH", "")
+
+    result = subprocess.run(
+        [
+            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            "-c",
+            (
+                "import json, sys;"
+                "from minutes.config import Settings;"
+                "from minutes.storage.file_store import FileStateStore;"
+                "from minutes.orchestrator import JobOrchestrator;"
+                "settings = Settings(state_root=sys.argv[1]);"
+                "settings.ensure_state_dirs();"
+                "JobOrchestrator(store=FileStateStore(settings));"
+                "print(json.dumps({"
+                "'diarizer': 'minutes.adapters.diarizer_pyannote' in sys.modules,"
+                "'summarizer': 'minutes.adapters.summarizer_openai_compatible' in sys.modules,"
+                "'transcriber': 'minutes.adapters.transcriber_sensevoice' in sys.modules"
+                "}))"
+            ),
+            str(tmp_path / "state"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    payload = json.loads(result.stdout)
+
+    assert payload == {
+        "diarizer": False,
+        "summarizer": False,
+        "transcriber": False,
+    }
+
+
+def test_measure_local_startup_path_reports_import_boundary(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            str(Path.cwd() / "scripts" / "measure_local.py"),
+            "startup-path",
+            "--iterations",
+            "1",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    payload = json.loads(result.stdout)
+
+    assert payload["command"] == "startup-path"
+    assert payload["iterations"] == 1
+    assert payload["config_import_ms"]["min"] >= 0.0
+    assert payload["cli_import_ms"]["min"] >= 0.0
+    assert payload["settings_init_ms"]["min"] >= 0.0
+    assert payload["orchestrator_import_ms"]["min"] >= 0.0
+    assert payload["orchestrator_construct_ms"]["min"] >= 0.0
+    assert payload["loaded_modules"] == {
+        "config": True,
+        "uvicorn": False,
+        "api_app": False,
+        "ffmpeg": False,
+        "transcriber": False,
+        "diarizer": False,
+        "summarizer": False,
+    }
+
+
 def test_orchestrator_normalizes_job(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     store = FileStateStore(settings)

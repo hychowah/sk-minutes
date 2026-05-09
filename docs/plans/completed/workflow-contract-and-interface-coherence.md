@@ -80,8 +80,8 @@ Finish the current cleanup of workflow ownership and operator-facing interface c
 - [AGENTS.md](../../../AGENTS.md)
 - [KNOWLEDGE.md](../../../KNOWLEDGE.md)
 - [DEVNOTES.md](../../../DEVNOTES.md)
-- [master-plan.md](../../master-plan.md)
-- [progress-tracker.md](../../progress-tracker.md)
+- [README.md](../../README.md)
+- [tech-debt.md](../../tech-debt.md)
 
 ## Constraints
 
@@ -195,7 +195,7 @@ Finish the current cleanup of workflow ownership and operator-facing interface c
 
 - Start with [DEVNOTES.md](../../../DEVNOTES.md) to confirm the latest verified baseline before acting on any follow-on work.
 - Treat this file as historical only; it no longer owns live scoped progress.
-- Use [docs/master-plan.md](../../master-plan.md) and [docs/progress-tracker.md](../../progress-tracker.md) to choose the next active workstream.
+- Use [INDEX.md](../../../INDEX.md), [DEVNOTES.md](../../../DEVNOTES.md), and [tech-debt.md](../../tech-debt.md) to confirm whether any follow-on work should be reopened.
 
 ## Done Bar
 
