@@ -18,6 +18,7 @@ These documents should point to their owner surfaces instead of duplicating live
 
 ## Documents In This Folder
 
+- [devnotes/README.md](devnotes/README.md): archive index and rollover rules for historical devnotes.
 - [tech-debt.md](tech-debt.md): unresolved debt inventory and cleanup priorities.
 - [plans/README.md](plans/README.md): rules for temporary scoped execution plans.
 - [plans/completed/mp-004-startup-hotspot-investigation.md](plans/completed/mp-004-startup-hotspot-investigation.md): historical record of the completed MP-004 startup investigation plan.
@@ -27,6 +28,7 @@ These documents should point to their owner surfaces instead of duplicating live
 ## Ownership Rules
 
 - Use [../DEVNOTES.md](../DEVNOTES.md) for recent verified repository truth.
+- Use [devnotes/README.md](devnotes/README.md) when older DEVNOTES history is needed after rollover.
 - Use [../INDEX.md](../INDEX.md) for repository map and current maintenance posture.
 - Use [tech-debt.md](tech-debt.md) for unresolved debt items.
 - Use documents under [plans/](plans) only for temporary scoped work that needs handoff across sessions or commits.

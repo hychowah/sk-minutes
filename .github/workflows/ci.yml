@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  regression:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install ffmpeg
+        shell: pwsh
+        run: |
+          choco install ffmpeg --no-progress -y
+          $ffmpeg = Join-Path $env:ChocolateyInstall 'bin\ffmpeg.exe'
+          $ffprobe = Join-Path $env:ChocolateyInstall 'bin\ffprobe.exe'
+          if (-not (Test-Path $ffmpeg)) {
+            throw "ffmpeg executable not found at $ffmpeg"
+          }
+          if (-not (Test-Path $ffprobe)) {
+            throw "ffprobe executable not found at $ffprobe"
+          }
+          "MINUTES_FFMPEG_BIN=$ffmpeg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install project and test dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run regression suite
+        shell: pwsh
+        run: |
+          python -m pytest tests/test_normalization_flow.py

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,13 +20,20 @@ def test_process_file_fixture_mp3() -> None:
     if os.environ.get("MINUTES_RUN_REAL_AUDIO_TESTS") != "1":
         pytest.skip("Set MINUTES_RUN_REAL_AUDIO_TESTS=1 to run the real audio integration test.")
 
-    python_exe = Path.cwd() / ".venv" / "Scripts" / "python.exe"
+    env = os.environ.copy()
+    env["MINUTES_STATE_ROOT"] = str(Path.cwd() / ".pytest-tmp" / "real-audio-state")
+    env["MINUTES_DIARIZATION_ENABLED"] = "0"
+    env["MINUTES_SUMMARY_BASE_URL"] = ""
+    env["MINUTES_SUMMARY_MODEL"] = ""
+    env.pop("MINUTES_SUMMARY_API_KEY", None)
+
     result = subprocess.run(
-        [str(python_exe), "-m", "minutes", "process-file", str(FIXTURE_PATH)],
+        [sys.executable, "-m", "minutes", "process-file", str(FIXTURE_PATH)],
         check=True,
         capture_output=True,
         text=True,
         timeout=600,
+        env=env,
     )
 
     payload = json.loads(result.stdout[result.stdout.index("{") :])

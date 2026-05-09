@@ -27,10 +27,10 @@ The committed sample set includes:
 ## Setup
 
 1. Create or activate the repository virtual environment.
-2. Install the project in editable mode:
+2. Install the project:
 
 ```powershell
-python -m pip install -e .
+python -m pip install .
 ```
 
 3. Optionally copy `.env.example` to `.env` and override runtime settings, including the summary backend if you want automatic summarization.
@@ -121,20 +121,6 @@ python -m minutes summarize-job <job_id>
 ```
 
 The API route `GET /api/jobs/{job_id}/summary` returns the persisted summary text plus summary metadata. When a current summary source is selected, the JSON response also exposes `source_current`, `current_source_artifact_kind`, and `current_source_artifact_path`. `POST /api/jobs/{job_id}/summarize` runs or reruns the summary stage for one job.
-
-## Test
-
-Run the local regression suite with:
-
-```powershell
-python -m pytest tests/test_normalization_flow.py
-```
-
-To run the opt-in real-audio integration test:
-
-```powershell
-$env:MINUTES_RUN_REAL_AUDIO_TESTS='1'; python -m pytest tests/test_real_audio_integration.py -m integration
-```
 
 ## Sample Output
 

@@ -1,7 +1,7 @@
 - Purpose: Short operating rules for LLM agents working in this repository
 - Scope: How to start work, when to create a plan, when to stop and ask, and how to maintain handoff docs; excludes architecture, roadmap, and debt inventory
 - Status: Active
-- Last validated: 2026-05-05
+- Last validated: 2026-05-09
 - Source of truth for: LLM session procedure, stop-and-ask triggers, doc update expectations
 
 # Agent Rules
@@ -30,9 +30,10 @@
 ## Documentation Update Expectations
 
 - Update [DEVNOTES.md](DEVNOTES.md) after verified work.
+- Keep [DEVNOTES.md](DEVNOTES.md) at or below 500 lines; when it would exceed that cap, move the oldest complete dated entries into the archive files listed in [docs/devnotes/README.md](docs/devnotes/README.md) and keep each archive file at or below 500 lines too.
 - Move reusable lessons into [KNOWLEDGE.md](KNOWLEDGE.md) only when they are general enough to reuse.
 - Update [docs/tech-debt.md](docs/tech-debt.md) when debt is discovered, resolved, reprioritized, or dropped.
-- Keep [README.md](README.md) focused on setup and usage only.
+- Keep [README.md](README.md) strictly end-user-facing. Do not add developer workflow, testing, CI, planning, or contributor-process content there.
 
 ## Temporary Files And Handoff
 

@@ -14,9 +14,10 @@ This is the first file a new human or LLM session should read.
 2. [AGENTS.md](AGENTS.md)
 3. [KNOWLEDGE.md](KNOWLEDGE.md)
 4. [DEVNOTES.md](DEVNOTES.md)
-5. Active execution plan, if one exists
-6. Relevant stable reference docs, if they exist
-7. Only then expand into code
+5. [docs/devnotes/README.md](docs/devnotes/README.md), only if older historical devnotes context is needed
+6. Active execution plan, if one exists
+7. Relevant stable reference docs, if they exist
+8. Only then expand into code
 
 ## Authority Hierarchy
 
@@ -32,6 +33,7 @@ This is the first file a new human or LLM session should read.
 ## Current Status Sources
 
 - Recent verified truth: [DEVNOTES.md](DEVNOTES.md)
+- Historical devnotes archive: [docs/devnotes/README.md](docs/devnotes/README.md)
 - Roadmap status: complete for the current local-first scope; maintained through this index, [DEVNOTES.md](DEVNOTES.md), and [docs/tech-debt.md](docs/tech-debt.md).
 - Active scoped work: none currently
 - Most recent completed scoped work: [docs/plans/completed/mp-004-startup-hotspot-investigation.md](docs/plans/completed/mp-004-startup-hotspot-investigation.md)
@@ -47,6 +49,7 @@ This is the first file a new human or LLM session should read.
 - [AGENTS.md](AGENTS.md): LLM operating rules
 - [KNOWLEDGE.md](KNOWLEDGE.md): reusable lessons and constraints
 - [DEVNOTES.md](DEVNOTES.md): rolling recent verified work log
+- [docs/devnotes/README.md](docs/devnotes/README.md): archive index and rollover rules for historical devnotes
 - [sample/](sample): committed example outputs copied from a validated real-audio run
 - [docs/README.md](docs/README.md): stable landing page for repository docs under `docs/`
 - [docs/tech-debt.md](docs/tech-debt.md): unresolved debt register
@@ -73,7 +76,7 @@ This is the first file a new human or LLM session should read.
 
 - Active execution plans are task-scoped and temporary.
 - Completed plans are historical only.
-- Archived devnotes are historical only.
+- Archived devnotes under [docs/devnotes/README.md](docs/devnotes/README.md) are historical only.
 - Local scratch files should not be treated as canonical truth.
 - No active execution plan currently exists.
 - Most recent completed plan: [docs/plans/completed/mp-004-startup-hotspot-investigation.md](docs/plans/completed/mp-004-startup-hotspot-investigation.md)
@@ -87,6 +90,7 @@ Stable documents in this repository currently include:
 - [AGENTS.md](AGENTS.md)
 - [KNOWLEDGE.md](KNOWLEDGE.md)
 - [DEVNOTES.md](DEVNOTES.md)
+- [docs/devnotes/README.md](docs/devnotes/README.md)
 - [docs/README.md](docs/README.md)
 - [docs/tech-debt.md](docs/tech-debt.md)
 - [docs/plans/README.md](docs/plans/README.md)

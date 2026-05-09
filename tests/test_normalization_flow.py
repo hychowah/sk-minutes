@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from httpx import Request
@@ -22,6 +24,22 @@ from minutes.pipeline import next_pending_stage
 from minutes.storage.file_store import FileStateStore
 from minutes.storage.models import ArtifactRecord, CreateJobRequest
 from minutes.worker import JobWorker
+
+
+def _python_executable() -> str:
+    return sys.executable
+
+
+def _ffmpeg_bin() -> Path:
+    configured = os.environ.get("MINUTES_FFMPEG_BIN")
+    if configured:
+        return Path(configured)
+
+    ffmpeg_on_path = shutil.which("ffmpeg")
+    if ffmpeg_on_path:
+        return Path(ffmpeg_on_path)
+
+    return Path(r"C:\ffmpeg-7.1-essentials_build\bin\ffmpeg.exe")
 
 
 class FakeTranscriber:
@@ -75,7 +93,7 @@ class FakeSummarizer:
 def _settings(tmp_path: Path, diarization_enabled: bool = False, summary_enabled: bool = False) -> Settings:
     settings = Settings(
         state_root=tmp_path / "state",
-        ffmpeg_bin=Path(r"C:\ffmpeg-7.1-essentials_build\bin\ffmpeg.exe"),
+        ffmpeg_bin=_ffmpeg_bin(),
         diarization_enabled=diarization_enabled,
         summary_base_url="http://summary.test/v1" if summary_enabled else None,
         summary_model="fake-summary-model" if summary_enabled else None,
@@ -112,7 +130,7 @@ def test_show_config_includes_summary_retry_settings(tmp_path: Path) -> None:
 
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-config",
@@ -152,7 +170,7 @@ def test_orchestrator_import_leaves_optional_adapters_unloaded(tmp_path: Path) -
 
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-c",
             (
                 "import json, sys;"
@@ -188,7 +206,7 @@ def test_orchestrator_import_leaves_optional_adapters_unloaded(tmp_path: Path) -
 def test_measure_local_startup_path_reports_import_boundary(tmp_path: Path) -> None:
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             str(Path.cwd() / "scripts" / "measure_local.py"),
             "startup-path",
             "--iterations",
@@ -303,7 +321,7 @@ def test_process_job_summarizes_plain_transcript_when_configured(tmp_path: Path)
 def test_summary_adapter_retries_timeout_once(tmp_path: Path) -> None:
     settings = Settings(
         state_root=tmp_path / "state",
-        ffmpeg_bin=Path(r"C:\ffmpeg-7.1-essentials_build\bin\ffmpeg.exe"),
+        ffmpeg_bin=_ffmpeg_bin(),
         summary_base_url="http://summary.test/v1",
         summary_model="fake-summary-model",
         summary_max_retries=1,
@@ -789,7 +807,7 @@ def test_show_transcript_cli_prints_text(tmp_path: Path) -> None:
     env["MINUTES_STATE_ROOT"] = str(settings.state_root)
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-transcript",
@@ -816,7 +834,7 @@ def test_list_jobs_cli_prints_jobs_as_json(tmp_path: Path) -> None:
     env["MINUTES_SUMMARY_MODEL"] = ""
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "list-jobs",
@@ -847,7 +865,7 @@ def test_show_job_cli_prints_job_json(tmp_path: Path) -> None:
     env["MINUTES_SUMMARY_MODEL"] = ""
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-job",
@@ -947,7 +965,7 @@ def test_show_job_cli_returns_error_when_missing(tmp_path: Path) -> None:
     env["MINUTES_STATE_ROOT"] = str(settings.state_root)
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-job",
@@ -976,7 +994,7 @@ def test_show_transcript_cli_prints_speaker_attributed_text(tmp_path: Path) -> N
     env["MINUTES_STATE_ROOT"] = str(settings.state_root)
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-transcript",
@@ -1009,7 +1027,7 @@ def test_show_summary_cli_prints_text(tmp_path: Path) -> None:
     env["MINUTES_DIARIZATION_ENABLED"] = "false"
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-summary",
@@ -1040,7 +1058,7 @@ def test_show_summary_cli_json_includes_source_status(tmp_path: Path) -> None:
     env["MINUTES_DIARIZATION_ENABLED"] = "false"
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-summary",
@@ -1078,7 +1096,7 @@ def test_show_summary_cli_returns_error_when_file_missing(tmp_path: Path) -> Non
     env["MINUTES_SUMMARY_MODEL"] = settings.summary_model or ""
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-summary",
@@ -1110,7 +1128,7 @@ def test_show_transcript_cli_returns_error_when_file_missing(tmp_path: Path) -> 
     env["MINUTES_STATE_ROOT"] = str(settings.state_root)
     result = subprocess.run(
         [
-            str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
+            _python_executable(),
             "-m",
             "minutes",
             "show-transcript",
