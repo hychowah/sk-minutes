@@ -3,10 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 from typing import Sequence
-
-import uvicorn
-
-from minutes.api.app import create_app
 from minutes.config import get_settings
 
 
@@ -178,6 +174,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0 if summarized.status != "failed" else 1
 
     if args.command == "serve":
+        import uvicorn
+
+        from minutes.api.app import create_app
+
         uvicorn.run(
             create_app(),
             host=settings.host,

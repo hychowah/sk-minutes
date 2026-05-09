@@ -13,7 +13,9 @@ from minutes.api.app import create_app
 from minutes.adapters.diarizer_pyannote import DiarizationResult, DiarizationSegment
 from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer
 from minutes.adapters.summarizer_openai_compatible import SummaryResult
+from minutes.adapters.transcriber_sensevoice import SenseVoiceTranscriber
 from minutes.adapters.transcriber_sensevoice import TranscriptionResult
+import minutes.adapters.transcriber_sensevoice as transcriber_module
 from minutes.config import Settings
 from minutes.orchestrator import JobOrchestrator
 from minutes.pipeline import next_pending_stage
@@ -125,6 +127,22 @@ def test_show_config_includes_summary_retry_settings(tmp_path: Path) -> None:
 
     assert payload["summary_timeout_seconds"] == 45
     assert payload["summary_max_retries"] == 2
+
+
+def test_transcriber_model_kwargs_prefer_cached_modelscope_paths(tmp_path: Path, monkeypatch) -> None:
+    settings = _settings(tmp_path)
+    cache_root = tmp_path / "modelscope-cache"
+    sensevoice_cache = cache_root / "iic" / "SenseVoiceSmall"
+    vad_cache = cache_root / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    sensevoice_cache.mkdir(parents=True)
+    vad_cache.mkdir(parents=True)
+    monkeypatch.setattr(transcriber_module, "_modelscope_cache_root", lambda: cache_root)
+
+    kwargs = SenseVoiceTranscriber(settings)._model_kwargs()
+
+    assert kwargs["model"] == str(sensevoice_cache)
+    assert kwargs["vad_model"] == str(vad_cache)
+    assert kwargs["disable_update"] is True
 
 
 def test_orchestrator_normalizes_job(tmp_path: Path) -> None:

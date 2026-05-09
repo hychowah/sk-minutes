@@ -6,6 +6,8 @@ This folder contains curated example outputs that are intentionally committed to
 
 - [test1/](test1): outputs copied from the validated real-audio run of [file/test1.mp3](../file/test1.mp3)
 
+The `test1` sample set is public material that is approved for repository publication.
+
 ## What Stays Here
 
 - Human-reviewable transcript artifacts

@@ -82,6 +82,8 @@ To create a job for one media file and process it through normalization plus tra
 python -m minutes process-file C:\path\to\audio.wav
 ```
 
+The first SenseVoice transcription run may download the FunASR speech and VAD models into your user ModelScope cache. Later runs should reuse the cached local model directories instead of treating them as fresh hub downloads.
+
 If `MINUTES_DIARIZATION_ENABLED=1` is set and `MINUTES_PYANNOTE_AUTH_TOKEN` is configured, the same command will continue into pyannote 3.1 diarization and speaker-attributed transcript assembly. The run will write diarization artifacts plus `speaker_transcript.json` and `speaker_transcript.txt` beside the plain transcript artifacts.
 
 If `MINUTES_SUMMARY_BASE_URL` and `MINUTES_SUMMARY_MODEL` are configured, the same command will continue into summary generation and write `summary.json` plus `summary.txt` beside the transcript artifacts. Use `--summary-language <code>` on `process-file` when you need the summary output language to differ from the transcript language.

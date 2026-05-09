@@ -21,6 +21,10 @@ class TranscriptionResult:
     language: str
 
 
+def _modelscope_cache_root() -> Path:
+    return Path.home() / ".cache" / "modelscope" / "hub" / "models"
+
+
 class SenseVoiceTranscriber:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
@@ -82,16 +86,37 @@ class SenseVoiceTranscriber:
             raise SenseVoiceError("FunASR is not available in the current environment.") from exc
 
         try:
-            self._model = AutoModel(
-                model=self.settings.sensevoice_model,
-                vad_model=self.settings.sensevoice_vad_model,
-                vad_kwargs={"max_single_segment_time": self.settings.transcription_max_single_segment_ms},
-                device=self._resolve_device(),
-            )
+            self._model = AutoModel(**self._model_kwargs())
         except Exception as exc:  # pragma: no cover - model bootstrap failures vary by environment
             raise SenseVoiceError(str(exc)) from exc
 
         return self._model
+
+    def _model_kwargs(self) -> dict[str, Any]:
+        return {
+            "model": self._resolve_model_reference(self.settings.sensevoice_model),
+            "vad_model": self._resolve_model_reference(self.settings.sensevoice_vad_model),
+            "vad_kwargs": {"max_single_segment_time": self.settings.transcription_max_single_segment_ms},
+            "device": self._resolve_device(),
+            "disable_update": True,
+        }
+
+    def _resolve_model_reference(self, model_name: str) -> str:
+        model_path = Path(model_name)
+        if model_path.exists():
+            return str(model_path)
+
+        try:
+            from funasr.download.name_maps_from_hub import name_maps_ms
+        except Exception:
+            return model_name
+
+        mapped_name = name_maps_ms.get(model_name, model_name)
+        cached_path = _modelscope_cache_root() / Path(mapped_name)
+        if cached_path.exists():
+            return str(cached_path)
+
+        return model_name
 
     @staticmethod
     def _rich_postprocess(text: str) -> str:

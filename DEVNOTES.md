@@ -6,6 +6,50 @@
 
 # Development Notes
 
+## 2026-05-09 - FunASR Cached Model Reuse
+
+### What Changed
+
+- Updated [src/minutes/adapters/transcriber_sensevoice.py](src/minutes/adapters/transcriber_sensevoice.py) so the transcriber now prefers existing ModelScope cache directories for the configured SenseVoice and VAD models before handing values to FunASR.
+- The same change now passes `disable_update=True` to `AutoModel`, which suppresses FunASR's version-update check during model bootstrap.
+
+### What Was Tried
+
+- Kept the change local to the transcriber adapter instead of adding new config surface first.
+- Reused FunASR's own ModelScope name map for aliases like `fsmn-vad`, so cached-path resolution stays aligned with the installed package rather than a repo-local duplicate table.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py -k "transcriber_model_kwargs_prefer_cached_modelscope_paths or show_config_includes_summary_retry_settings or list_jobs_cli_prints_jobs_as_json or show_job_cli_prints_job_json"` passed with 4 selected tests.
+- Runtime inspection confirmed that the expected cached model directories already exist under `%USERPROFILE%\.cache\modelscope\hub\models\iic\SenseVoiceSmall` and `%USERPROFILE%\.cache\modelscope\hub\models\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch`.
+
+### Next Session Should Know
+
+- The first cold run still needs the hub download, but once those directories exist the transcriber should pass their local paths into FunASR instead of raw hub identifiers.
+- If startup still feels slow after this, the remaining time is more likely model load time, ffmpeg normalization, or deeper eager imports rather than repeated hub download resolution.
+
+## 2026-05-09 - CLI Serve-Only Import Deferral
+
+### What Changed
+
+- Updated [src/minutes/cli.py](src/minutes/cli.py) so `uvicorn` and `create_app` are imported only inside the `serve` command branch instead of at module import time.
+- Kept the rest of the CLI command routing unchanged, so non-serve commands like `process-file`, `show-config`, `list-jobs`, and `show-job` still execute through the same command branches after settings load.
+
+### What Was Tried
+
+- Chose the smallest startup-cost slice first: remove web-server and API-stack imports from the default CLI import path before touching deeper orchestration imports.
+- Verified the import boundary directly rather than inferring it from timings alone.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py -k "show_config_includes_summary_retry_settings or list_jobs_cli_prints_jobs_as_json or show_job_cli_prints_job_json"` passed with 3 selected tests.
+- Running a direct Python snippet in the workspace showed that importing `minutes.cli` no longer loads `minutes.api.app` or `uvicorn` into `sys.modules`.
+
+### Next Session Should Know
+
+- Non-serve CLI startup is now narrower than before, but `process-file` still imports `JobOrchestrator`, which currently imports all adapter modules up front.
+- The next startup-reduction slice, if needed, is to defer heavy adapter-module imports in [src/minutes/orchestrator.py](src/minutes/orchestrator.py) until their stage is actually reached.
+
 ## 2026-05-09 - Workflow Contract Plan Closeout
 
 ### What Changed
