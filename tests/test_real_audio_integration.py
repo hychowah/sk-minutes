@@ -34,5 +34,5 @@ def test_process_file_fixture_mp3() -> None:
 
     assert payload["status"] == "completed"
     assert payload["workflow_stage"] == "transcribed"
-    assert payload["current_stage"] == "transcribed"
+    assert "current_stage" not in payload
     assert transcript_text

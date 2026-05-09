@@ -6,6 +6,59 @@
 
 # Development Notes
 
+## 2026-05-09 - Workflow Contract Plan Closeout
+
+### What Changed
+
+- Updated [src/minutes/storage/models.py](src/minutes/storage/models.py) and [src/minutes/storage/file_store.py](src/minutes/storage/file_store.py) so stored jobs no longer persist the now-obsolete `current_stage` field.
+- Updated [src/minutes/orchestrator.py](src/minutes/orchestrator.py) so the raw stored job record now keeps one `workflow_stage` marker plus `status`, and summary generation now reuses the shared [src/minutes/pipeline/__init__.py](src/minutes/pipeline/__init__.py) `summary_source_artifact` owner instead of a duplicate private helper.
+- Updated [tests/test_normalization_flow.py](tests/test_normalization_flow.py) so internal workflow assertions now use `workflow_stage` and `next_pending_stage` rather than the removed `current_stage` field.
+- Moved the finished scoped plan to [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md) and updated [INDEX.md](INDEX.md), [docs/README.md](docs/README.md), [docs/plans/README.md](docs/plans/README.md), [docs/progress-tracker.md](docs/progress-tracker.md), and [docs/master-plan.md](docs/master-plan.md) so the repository no longer claims there is active scoped work when there is not.
+
+### What Was Tried
+
+- Removed `current_stage` from storage instead of keeping it as a persistence-only compatibility field, because the only remaining implementation users were orchestrator writes and test assertions.
+- Kept the public transport contract and the raw stored workflow marker separate: public job payloads still derive canonical progress from shared artifact rules, while stored jobs keep only the raw stage/status needed by the worker and orchestrator.
+- Closed the scoped workflow/interface plan rather than stretching it into performance work, so MP-004 can become the next explicit active slice without mixing owner docs.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py -k "test_orchestrator_normalizes_job or test_summarize_job_waits_for_speaker_transcript_when_diarization_enabled or test_worker_run_once_picks_up_job_missing_summary_artifact or test_process_job_summarizes_plain_transcript_when_configured or test_summarize_job_prefers_existing_speaker_transcript_even_when_diarization_disabled"` passed with 5 selected tests.
+- `python -m pytest tests/test_normalization_flow.py` passed with 39 tests after removing `current_stage` from persistence and closing the scoped plan.
+
+### Next Session Should Know
+
+- There is no active scoped execution plan currently; the finished workflow/interface plan is now historical at [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md).
+- `current_stage` is gone from both public transport and stored job records; internal code should use `status`, raw `workflow_stage`, and shared helpers like `next_pending_stage` instead.
+- The clearest next active slice is MP-004 performance follow-up, using the existing validated measurements rather than reopening workflow-contract cleanup.
+
+## 2026-05-09 - Public Job Contract Canonicalization
+
+### What Changed
+
+- Updated [src/minutes/storage/models.py](src/minutes/storage/models.py) so `JobResponse` is now an explicit public transport model instead of inheriting every persisted `JobRecord` field by default.
+- Updated [src/minutes/job_view.py](src/minutes/job_view.py) so CLI and API job payloads are assembled intentionally from shared workflow helpers instead of passing through `job.model_dump()`.
+- Updated [src/minutes/pipeline/__init__.py](src/minutes/pipeline/__init__.py) with shared `summary_state` and canonical `workflow_progress_stage` helpers so public job payloads expose summary freshness and artifact-backed workflow progress from one owner.
+- Removed `current_stage` from public CLI and API job payloads while keeping the stored job record permissive for existing on-disk compatibility.
+- Extended [tests/test_normalization_flow.py](tests/test_normalization_flow.py) and [tests/test_real_audio_integration.py](tests/test_real_audio_integration.py) so transport-facing coverage now asserts the new public payload contract and the out-of-order diarization edge case.
+
+### What Was Tried
+
+- Kept the storage model intact for now and changed only the public transport assembly first, so the compatibility cut stays local to CLI and API payloads instead of forcing a storage migration immediately.
+- Reused the shared pipeline owner for both `summary_state` and public `workflow_stage` derivation instead of teaching the serializer a second set of artifact rules.
+- Treated stale summaries as falling back to the last current non-summary workflow stage in public payloads, so `workflow_stage` and `next_stage` stay coherent even when old summary artifacts still exist.
+
+### What Was Validated
+
+- `python -m pytest tests/test_normalization_flow.py -k "test_list_jobs_cli_prints_jobs_as_json or test_show_job_cli_prints_job_json or test_get_job_route_reports_stale_summary_state or test_get_job_route_canonicalizes_workflow_stage_after_out_of_order_diarization or test_summarize_job_route_runs_summary_stage"` passed with 5 selected tests across the transport-contract slice.
+- `python -m pytest tests/test_normalization_flow.py` passed with 39 tests after the public job contract canonicalization slice.
+
+### Next Session Should Know
+
+- Public job payloads no longer expose `current_stage`; downstream CLI and API consumers should use `workflow_stage`, `next_stage`, and `summary_state` instead.
+- Public `workflow_stage` is now derived from canonical artifact-backed progress rather than the raw persisted field, so out-of-order stage execution no longer leaks confusing workflow history into transport payloads.
+- The remaining cleanup question is whether `current_stage` should stay persisted internally for compatibility or be retired from storage as well once on-disk migration expectations are clearer.
+
 ## 2026-05-09 - Summary Freshness Visibility
 
 ### What Changed
@@ -247,7 +300,7 @@
 - Updated [src/minutes/api/routes_jobs.py](src/minutes/api/routes_jobs.py) so the public `POST /api/jobs` surface now rejects requests that omit `source_path`.
 - Kept the internal store path permissive so manual and test-only seeded-artifact workflows can still create source-less jobs when artifacts are injected out-of-band.
 - Added [scripts/measure_local.py](scripts/measure_local.py) as the first lightweight local measurement script with subcommands for synthetic control-plane timings plus opt-in transcription, summary, and speaker-assembly measurements.
-- Updated [INDEX.md](INDEX.md), [docs/plans/active/workflow-contract-and-interface-coherence.md](docs/plans/active/workflow-contract-and-interface-coherence.md), and [docs/progress-tracker.md](docs/progress-tracker.md) so the source-less job decision and measurement-path milestone are reflected in the current planning docs.
+- Updated [INDEX.md](INDEX.md), [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md), and [docs/progress-tracker.md](docs/progress-tracker.md) so the source-less job decision and measurement-path milestone are reflected in the current planning docs.
 
 ### What Was Tried
 
@@ -324,8 +377,8 @@
 
 ### What Changed
 
-- Added [docs/plans/active/workflow-contract-and-interface-coherence.md](docs/plans/active/workflow-contract-and-interface-coherence.md) as the first active scoped execution plan for the current workflow and interface cleanup workstream.
-- Updated [docs/plans/README.md](docs/plans/README.md), [docs/README.md](docs/README.md), [docs/progress-tracker.md](docs/progress-tracker.md), and [INDEX.md](INDEX.md) so the repository documentation now points to the active plan instead of stating that no active plan exists.
+- Added [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md) as the historical record of the first scoped workflow and interface cleanup execution plan.
+- Updated [docs/plans/README.md](docs/plans/README.md), [docs/README.md](docs/README.md), [docs/progress-tracker.md](docs/progress-tracker.md), and [INDEX.md](INDEX.md) so the repository documentation reflects the finished scoped plan state.
 
 ### What Was Tried
 
@@ -338,7 +391,7 @@
 
 ### Next Session Should Know
 
-- The repository now has an active scoped plan at [docs/plans/active/workflow-contract-and-interface-coherence.md](docs/plans/active/workflow-contract-and-interface-coherence.md).
+- The finished scoped workflow/interface plan is retained historically at [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md).
 - `INDEX.md` and the docs map now treat that plan as the active scoped work source until the workstream is complete.
 
 ## 2026-05-08 - Docs Landing Page

@@ -21,7 +21,7 @@ This is the first file a new human or LLM session should read.
 ## Authority Hierarchy
 
 1. [DEVNOTES.md](DEVNOTES.md) for the most recent verified repository state
-2. Active execution plan for scoped task progress and handoff
+2. Active execution plan for scoped task progress and handoff, if one exists
 3. [docs/tech-debt.md](docs/tech-debt.md) for unresolved issues and cleanup priorities
 4. Stable reference docs, if they exist later, for long-lived structure
 5. [KNOWLEDGE.md](KNOWLEDGE.md) for reusable lessons and constraints
@@ -32,7 +32,8 @@ This is the first file a new human or LLM session should read.
 ## Current Status Sources
 
 - Recent verified truth: [DEVNOTES.md](DEVNOTES.md)
-- Active scoped work: [docs/plans/active/workflow-contract-and-interface-coherence.md](docs/plans/active/workflow-contract-and-interface-coherence.md)
+- Active scoped work: none currently
+- Most recent completed scoped work: [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md)
 - Reusable technical lessons: [KNOWLEDGE.md](KNOWLEDGE.md)
 - Unresolved debt: [docs/tech-debt.md](docs/tech-debt.md)
 - Stable structure: [docs/master-plan.md](docs/master-plan.md) and [docs/progress-tracker.md](docs/progress-tracker.md)
@@ -51,6 +52,7 @@ This is the first file a new human or LLM session should read.
 - [docs/progress-tracker.md](docs/progress-tracker.md): high-level workstream progress view linked to owner docs
 - [docs/tech-debt.md](docs/tech-debt.md): unresolved debt register
 - [docs/plans/README.md](docs/plans/README.md): execution plan usage rules
+- [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md): historical completed workflow/interface cleanup plan
 - [docs/plans/_EXEC_PLAN_TEMPLATE.md](docs/plans/_EXEC_PLAN_TEMPLATE.md): scoped work template
 
 ## Important Commands
@@ -72,8 +74,8 @@ This is the first file a new human or LLM session should read.
 - Completed plans are historical only.
 - Archived devnotes are historical only.
 - Local scratch files should not be treated as canonical truth.
-- Active execution plan: [docs/plans/active/workflow-contract-and-interface-coherence.md](docs/plans/active/workflow-contract-and-interface-coherence.md)
-- No completed plan files are currently retained.
+- No active execution plan currently exists.
+- Most recent completed plan: [docs/plans/completed/workflow-contract-and-interface-coherence.md](docs/plans/completed/workflow-contract-and-interface-coherence.md)
 
 ## Stable Vs Temporary Documents
 

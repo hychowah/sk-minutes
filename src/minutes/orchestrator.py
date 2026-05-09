@@ -9,7 +9,7 @@ from minutes.adapters.diarizer_pyannote import PyannoteDiarizationError, Pyannot
 from minutes.adapters.ffmpeg import FfmpegAdapter, FfmpegError
 from minutes.adapters.summarizer_openai_compatible import OpenAICompatibleSummarizer, OpenAICompatibleSummaryError
 from minutes.adapters.transcriber_sensevoice import SenseVoiceError, SenseVoiceTranscriber
-from minutes.pipeline import StageName, next_pending_stage
+from minutes.pipeline import StageName, next_pending_stage, summary_source_artifact
 from minutes.storage.file_store import FileStateStore
 from minutes.storage.models import ArtifactRecord, JobRecord, JobStatus
 
@@ -334,7 +334,7 @@ class JobOrchestrator:
             if job.status == JobStatus.FAILED:
                 return job
 
-        source_artifact = self._summary_source_artifact(job)
+        source_artifact = summary_source_artifact(job, self.store.settings)
         if source_artifact is None:
             raise ValueError("Transcript artifact is required before summarization.")
 
@@ -401,8 +401,7 @@ class JobOrchestrator:
         running_job = job.model_copy(
             update={
                 "status": JobStatus.RUNNING,
-                "workflow_stage": self._workflow_stage(job),
-                "current_stage": active_stage,
+                "workflow_stage": active_stage,
                 "error_message": None,
             }
         )
@@ -419,7 +418,6 @@ class JobOrchestrator:
         completed_job = completed_job.model_copy(
             update={
                 "status": JobStatus.COMPLETED if pending_stage is None else JobStatus.QUEUED,
-                "current_stage": completed_stage if pending_stage is None else pending_stage,
             }
         )
         return self.store.save_job(completed_job)
@@ -428,16 +426,11 @@ class JobOrchestrator:
         failed_job = job.model_copy(
             update={
                 "status": JobStatus.FAILED,
-                "workflow_stage": self._workflow_stage(job),
-                "current_stage": failed_stage,
+                "workflow_stage": failed_stage,
                 "error_message": str(exc),
             }
         )
         return self.store.save_job(failed_job)
-
-    @staticmethod
-    def _workflow_stage(job: JobRecord) -> str | None:
-        return job.workflow_stage or job.current_stage
 
     def _build_speaker_transcript_payload(
         self,
@@ -620,12 +613,6 @@ class JobOrchestrator:
             if artifact.kind == kind:
                 return artifact
         return None
-
-    def _summary_source_artifact(self, job: JobRecord) -> ArtifactRecord | None:
-        speaker_transcript = self._artifact(job, "speaker_transcript_text")
-        if speaker_transcript is not None:
-            return speaker_transcript
-        return self._artifact(job, "transcript_text")
 
     def _resolve_summary_language(self, job: JobRecord) -> str:
         if job.summary_language:

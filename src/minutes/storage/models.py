@@ -29,7 +29,6 @@ class JobRecord(BaseModel):
     job_id: str
     status: JobStatus = JobStatus.QUEUED
     workflow_stage: str | None = None
-    current_stage: str | None = None
     source_path: str | None = None
     transcription_language: str | None = None
     summary_language: str | None = None
@@ -39,7 +38,18 @@ class JobRecord(BaseModel):
     error_message: str | None = None
 
 
-class JobResponse(JobRecord):
+class JobResponse(BaseModel):
+    job_id: str
+    status: JobStatus
+    workflow_stage: str | None = None
+    summary_state: str | None = None
+    source_path: str | None = None
+    transcription_language: str | None = None
+    summary_language: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    artifacts: list[ArtifactRecord] = Field(default_factory=list)
+    error_message: str | None = None
     next_stage: str | None = None
 
 

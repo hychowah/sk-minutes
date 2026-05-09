@@ -76,5 +76,40 @@ def summary_is_current(job: JobRecord, settings: Settings) -> bool:
 	)
 
 
-__all__ = ["StageName", "artifact", "next_pending_stage", "summary_is_current", "summary_source_artifact"]
+def summary_state(job: JobRecord, settings: Settings) -> str | None:
+	if not settings.summary_configured:
+		return None
+
+	current_source = summary_source_artifact(job, settings)
+	summary_artifact = artifact(job, "summary_text")
+	if summary_artifact is None:
+		return "unavailable" if current_source is None else "missing"
+	if current_source is None:
+		return "unavailable"
+	return "current" if summary_is_current(job, settings) else "stale"
+
+
+def workflow_progress_stage(job: JobRecord, settings: Settings) -> StageName | None:
+	if settings.summary_configured and _has_summary_source(job, settings) and summary_is_current(job, settings):
+		return StageName.SUMMARIZED
+	if settings.diarization_enabled and artifact(job, "speaker_transcript_text") is not None:
+		return StageName.SPEAKER_ATTRIBUTED
+	if settings.diarization_enabled and artifact(job, "transcript_text") is not None and artifact(job, "diarization_json") is not None:
+		return StageName.DIARIZED
+	if artifact(job, "transcript_text") is not None:
+		return StageName.TRANSCRIBED
+	if artifact(job, "normalized_audio") is not None:
+		return StageName.NORMALIZED
+	return None
+
+
+__all__ = [
+	"StageName",
+	"artifact",
+	"next_pending_stage",
+	"summary_is_current",
+	"summary_source_artifact",
+	"summary_state",
+	"workflow_progress_stage",
+]
 """Pipeline stages for the Minutes application."""

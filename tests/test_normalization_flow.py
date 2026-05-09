@@ -16,6 +16,7 @@ from minutes.adapters.summarizer_openai_compatible import SummaryResult
 from minutes.adapters.transcriber_sensevoice import TranscriptionResult
 from minutes.config import Settings
 from minutes.orchestrator import JobOrchestrator
+from minutes.pipeline import next_pending_stage
 from minutes.storage.file_store import FileStateStore
 from minutes.storage.models import ArtifactRecord, CreateJobRequest
 from minutes.worker import JobWorker
@@ -138,7 +139,7 @@ def test_orchestrator_normalizes_job(tmp_path: Path) -> None:
     artifact_kinds = [artifact.kind for artifact in updated.artifacts]
     assert updated.status == "queued"
     assert updated.workflow_stage == "normalized"
-    assert updated.current_stage == "transcribe"
+    assert next_pending_stage(updated, settings) == "transcribe"
     assert artifact_kinds == ["probe", "normalized_audio"]
     assert Path(updated.artifacts[-1].path).exists()
 
@@ -176,7 +177,7 @@ def test_worker_run_once_processes_job_to_transcribed(tmp_path: Path) -> None:
     assert updated.job_id == job.job_id
     assert updated.status == "completed"
     assert updated.workflow_stage == "transcribed"
-    assert updated.current_stage == "transcribed"
+    assert next_pending_stage(updated, settings) is None
     assert [artifact.kind for artifact in updated.artifacts] == ["probe", "normalized_audio", "transcript_json", "transcript_text"]
 
 
@@ -196,7 +197,7 @@ def test_process_job_summarizes_plain_transcript_when_configured(tmp_path: Path)
 
     assert updated.status == "completed"
     assert updated.workflow_stage == "summarized"
-    assert updated.current_stage == "summarized"
+    assert next_pending_stage(updated, settings) is None
     assert summarizer.calls == [("hello from fake transcriber", "yue")]
     summary_artifact = store.get_artifact(job.job_id, "summary_text")
     assert summary_artifact is not None
@@ -279,7 +280,7 @@ def test_process_job_uses_match_transcript_language_when_none_is_resolved(tmp_pa
     ).process_job(job.job_id)
 
     assert updated.workflow_stage == "summarized"
-    assert updated.current_stage == "summarized"
+    assert next_pending_stage(updated, settings) is None
     assert summarizer.calls == [("hello from fake transcriber", "match-transcript")]
 
 
@@ -300,7 +301,7 @@ def test_process_job_summarizes_speaker_transcript_when_available(tmp_path: Path
 
     assert updated.status == "completed"
     assert updated.workflow_stage == "summarized"
-    assert updated.current_stage == "summarized"
+    assert next_pending_stage(updated, settings) is None
     assert len(summarizer.calls) == 1
     assert "SPEAKER_00" in summarizer.calls[0][0]
     assert summarizer.calls[0][1] == "en"
@@ -325,7 +326,7 @@ def test_summarize_job_waits_for_speaker_transcript_when_diarization_enabled(tmp
 
     assert partially_processed.status == "queued"
     assert partially_processed.workflow_stage == "diarized"
-    assert partially_processed.current_stage == "transcribe"
+    assert next_pending_stage(partially_processed, settings) == "transcribe"
     assert store.get_artifact(job.job_id, "speaker_transcript_text") is None
 
     summarized = JobOrchestrator(
@@ -337,7 +338,7 @@ def test_summarize_job_waits_for_speaker_transcript_when_diarization_enabled(tmp
 
     assert summarized.status == "completed"
     assert summarized.workflow_stage == "summarized"
-    assert summarized.current_stage == "summarized"
+    assert next_pending_stage(summarized, settings) is None
     assert len(summarizer.calls) == 1
     assert "SPEAKER_00" in summarizer.calls[0][0]
 
@@ -354,7 +355,7 @@ def test_worker_run_once_picks_up_job_missing_summary_artifact(tmp_path: Path) -
 
     assert transcribed.status == "queued"
     assert transcribed.workflow_stage == "transcribed"
-    assert transcribed.current_stage == "summarize"
+    assert next_pending_stage(transcribed, settings) == "summarize"
     assert store.get_artifact(job.job_id, "summary_text") is None
 
     worker = JobWorker(
@@ -371,7 +372,7 @@ def test_worker_run_once_picks_up_job_missing_summary_artifact(tmp_path: Path) -
     assert next_job is not None
     assert next_job.job_id == job.job_id
     assert updated is not None
-    assert updated.current_stage == "summarized"
+    assert updated.workflow_stage == "summarized"
     assert len(summarizer.calls) == 1
 
 
@@ -414,7 +415,7 @@ def test_worker_run_once_summarizes_source_less_job_with_existing_transcript(tmp
     assert updated.workflow_stage == "summarized"
     assert updated.status == "completed"
     assert updated.workflow_stage == "summarized"
-    assert updated.current_stage == "summarized"
+    assert next_pending_stage(updated, settings) is None
     assert summarizer.calls == [("manual transcript text", "en")]
     summary_artifact = store.get_artifact(job.job_id, "summary_text")
     assert summary_artifact is not None
@@ -464,7 +465,7 @@ def test_worker_run_once_regenerates_stale_summary_when_transcript_changes(tmp_p
     assert updated is not None
     assert updated.status == "completed"
     assert updated.workflow_stage == "summarized"
-    assert updated.current_stage == "summarized"
+    assert next_pending_stage(updated, settings) is None
     assert summarizer.calls == [("fresh transcript text", "en")]
     summary_artifact = store.get_artifact(job.job_id, "summary_text")
     assert summary_artifact is not None
@@ -522,7 +523,7 @@ def test_process_job_runs_both_stages_with_fake_transcriber(tmp_path: Path) -> N
 
     assert updated.status == "completed"
     assert updated.workflow_stage == "transcribed"
-    assert updated.current_stage == "transcribed"
+    assert next_pending_stage(updated, settings) is None
     assert [artifact.kind for artifact in updated.artifacts] == ["probe", "normalized_audio", "transcript_json", "transcript_text"]
 
 
@@ -719,6 +720,8 @@ def test_list_jobs_cli_prints_jobs_as_json(tmp_path: Path) -> None:
 
     env = os.environ.copy()
     env["MINUTES_STATE_ROOT"] = str(settings.state_root)
+    env["MINUTES_SUMMARY_BASE_URL"] = ""
+    env["MINUTES_SUMMARY_MODEL"] = ""
     result = subprocess.run(
         [
             str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
@@ -737,6 +740,8 @@ def test_list_jobs_cli_prints_jobs_as_json(tmp_path: Path) -> None:
     assert [job["job_id"] for job in payload] == [second.job_id, first.job_id]
     assert payload[0]["next_stage"] == "normalize"
     assert payload[1]["next_stage"] == "normalize"
+    assert "current_stage" not in payload[0]
+    assert "current_stage" not in payload[1]
 
 
 def test_show_job_cli_prints_job_json(tmp_path: Path) -> None:
@@ -746,6 +751,8 @@ def test_show_job_cli_prints_job_json(tmp_path: Path) -> None:
 
     env = os.environ.copy()
     env["MINUTES_STATE_ROOT"] = str(settings.state_root)
+    env["MINUTES_SUMMARY_BASE_URL"] = ""
+    env["MINUTES_SUMMARY_MODEL"] = ""
     result = subprocess.run(
         [
             str(Path.cwd() / ".venv" / "Scripts" / "python.exe"),
@@ -766,7 +773,79 @@ def test_show_job_cli_prints_job_json(tmp_path: Path) -> None:
     assert payload["source_path"] == "C:/media/example.wav"
     assert payload["transcription_language"] == "yue"
     assert payload["summary_language"] == "en"
+    assert payload["summary_state"] is None
     assert payload["next_stage"] == "normalize"
+    assert "current_stage" not in payload
+
+
+def test_get_job_route_reports_stale_summary_state(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, summary_enabled=True)
+    store = FileStateStore(settings)
+    job = store.create_job(CreateJobRequest())
+    artifacts_root = store.artifacts_root(job.job_id)
+
+    transcript_path = artifacts_root / "transcript.txt"
+    transcript_path.write_text("fresh transcript text", encoding="utf-8")
+    job = store.replace_artifact(
+        job,
+        ArtifactRecord(
+            kind="transcript_text",
+            path=str(transcript_path),
+            metadata={"language": "en"},
+        ),
+    )
+
+    summary_path = artifacts_root / "summary.txt"
+    summary_path.write_text("stale summary text", encoding="utf-8")
+    job = store.replace_artifact(
+        job,
+        ArtifactRecord(
+            kind="summary_text",
+            path=str(summary_path),
+            metadata={
+                "source_artifact_kind": "transcript_text",
+                "source_artifact_path": str(artifacts_root / "transcript-old.txt"),
+                "source_artifact_created_at": "2000-01-01T00:00:00+00:00",
+                "summary_language": "en",
+            },
+        ),
+    )
+    store.save_job(job)
+
+    app = create_app(settings)
+    app.state.store = store
+    client = TestClient(app)
+
+    response = client.get(f"/api/jobs/{job.job_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workflow_stage"] == "transcribed"
+    assert payload["summary_state"] == "stale"
+    assert payload["next_stage"] == "summarize"
+    assert "current_stage" not in payload
+
+
+def test_get_job_route_canonicalizes_workflow_stage_after_out_of_order_diarization(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, diarization_enabled=True)
+    store = FileStateStore(settings)
+    source = tmp_path / "route-diarize-out-of-order.wav"
+    _make_source_audio(settings, source)
+
+    job = store.create_job(CreateJobRequest(source_path=str(source)))
+    JobOrchestrator(store=store, transcriber=FakeTranscriber(), diarizer=FakeDiarizer()).diarize_job(job.job_id)
+
+    app = create_app(settings)
+    app.state.store = store
+    client = TestClient(app)
+
+    response = client.get(f"/api/jobs/{job.job_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workflow_stage"] == "normalized"
+    assert payload["next_stage"] == "transcribe"
+    assert "current_stage" not in payload
 
 
 def test_show_job_cli_returns_error_when_missing(tmp_path: Path) -> None:
@@ -970,7 +1049,7 @@ def test_process_job_runs_diarization_when_enabled(tmp_path: Path) -> None:
 
     assert updated.status == "completed"
     assert updated.workflow_stage == "speaker_attributed"
-    assert updated.current_stage == "speaker_attributed"
+    assert next_pending_stage(updated, settings) is None
     assert [artifact.kind for artifact in updated.artifacts] == [
         "probe",
         "normalized_audio",
@@ -1036,7 +1115,8 @@ def test_summarize_job_route_runs_summary_stage(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["workflow_stage"] == "summarized"
-    assert payload["current_stage"] == "summarized"
+    assert payload["summary_state"] == "current"
+    assert "current_stage" not in payload
 
 
 def test_summarize_job_prefers_existing_speaker_transcript_even_when_diarization_disabled(tmp_path: Path) -> None:
@@ -1072,5 +1152,5 @@ def test_summarize_job_prefers_existing_speaker_transcript_even_when_diarization
 
     assert summarized.status == "completed"
     assert summarized.workflow_stage == "summarized"
-    assert summarized.current_stage == "summarized"
+    assert next_pending_stage(summarized, settings) is None
     assert summarizer.calls == [("speaker transcript text", "en")]

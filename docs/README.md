@@ -1,7 +1,7 @@
 - Purpose: Stable landing page for repository documentation under docs/
 - Scope: Document map and ownership guidance for stable docs in this folder; excludes live implementation status, setup instructions, and temporary task handoff
 - Status: Active
-- Last validated: 2026-05-08
+- Last validated: 2026-05-09
 - Source of truth for: docs/ folder navigation and document ownership overview
 
 # Docs Overview
@@ -22,7 +22,7 @@ These documents should point to their owner surfaces instead of duplicating live
 - [progress-tracker.md](progress-tracker.md): high-level workstream states and next gates linked back to owner docs.
 - [tech-debt.md](tech-debt.md): unresolved debt inventory and cleanup priorities.
 - [plans/README.md](plans/README.md): rules for temporary scoped execution plans.
-- [plans/active/workflow-contract-and-interface-coherence.md](plans/active/workflow-contract-and-interface-coherence.md): the current active scoped plan for workflow and interface cleanup.
+- [plans/completed/workflow-contract-and-interface-coherence.md](plans/completed/workflow-contract-and-interface-coherence.md): historical record of the completed workflow and interface cleanup plan.
 - [plans/_EXEC_PLAN_TEMPLATE.md](plans/_EXEC_PLAN_TEMPLATE.md): template for scoped plan files when they are needed.
 
 ## Ownership Rules

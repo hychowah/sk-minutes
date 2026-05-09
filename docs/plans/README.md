@@ -1,7 +1,7 @@
 - Purpose: Explain execution plan usage in this repository
 - Scope: When to create a plan, where plans belong, and how plans relate to other docs; excludes task content itself
 - Status: Active
-- Last validated: 2026-05-08
+- Last validated: 2026-05-09
 - Source of truth for: Execution plan lifecycle and usage rules
 
 # Execution Plans
@@ -17,10 +17,10 @@ Execution plans are temporary, task-scoped documents for work that spans multipl
 ## Where Plans Live
 
 - Use `docs/plans/` for plan templates and plan files.
-- An active scoped plan currently exists at [active/workflow-contract-and-interface-coherence.md](active/workflow-contract-and-interface-coherence.md).
-- No completed scoped plan files are currently retained.
+- No active scoped plan currently exists.
+- A completed scoped plan is retained at [completed/workflow-contract-and-interface-coherence.md](completed/workflow-contract-and-interface-coherence.md) for history.
 - Active plans live under `docs/plans/active/`.
-- If completed plan folders are added later, completed plans should move to `docs/plans/completed/`.
+- Completed plans retained for history live under `docs/plans/completed/`.
 
 ## Relationship To Other Docs
 

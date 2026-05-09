@@ -1,12 +1,12 @@
-- Purpose: Temporary scoped execution plan for the current workflow and interface cleanup slice
+- Purpose: Historical scoped execution plan for the completed workflow and interface cleanup slice
 - Scope: Cross-session implementation plan for workflow semantics, interface coherence, and the first measurement-prep tasks; excludes repo-wide truth ownership
-- Status: Active
+- Status: Completed
 - Last validated: 2026-05-09
-- Source of truth for: Current scoped execution plan for MP-002 and MP-003 follow-on work
+- Source of truth for: Historical record of the completed MP-002 and MP-003 workflow/interface cleanup slice
 
 # Execution Plan
 
-Temporary document. This file supports the current active workstream and must not replace stable owner docs.
+Historical document. This file records a completed scoped workstream and must not replace stable owner docs.
 
 ## Title
 
@@ -14,7 +14,7 @@ Workflow Contract And Interface Coherence
 
 ## Status
 
-Active
+Completed
 
 ## Created Date
 
@@ -70,7 +70,9 @@ Finish the current cleanup of workflow ownership and operator-facing interface c
 - Summary retries are now explicit and bounded through `summary_max_retries`, and persisted summary artifacts now record that retry configuration alongside timeout and elapsed-time metadata.
 - Summary stage readiness now invalidates stale summaries by comparing persisted summary provenance to the currently selected transcript source artifact.
 - The summary-aware control-plane benchmark now shows only a small worker-scan delta from provenance checks at 250 synthetic jobs, and summary retrieval now exposes freshness through shared API and CLI JSON response fields.
-- The next unresolved slice is deciding whether `current_stage` should remain a compatibility field at all or whether job-level transport should surface similar summary freshness hints.
+- Public job payloads now use an explicit shared job view, expose `summary_state`, and no longer leak `current_stage` through CLI or API payloads.
+- Public `workflow_stage` is now derived from canonical artifact-backed workflow progress, so out-of-order stage execution no longer produces incoherent transport payloads.
+- The last remaining closeout work has landed: `current_stage` has been removed from stored job records, and summary generation now reuses the shared summary-source owner.
 
 ## Context To Read First
 
@@ -159,6 +161,10 @@ Finish the current cleanup of workflow ownership and operator-facing interface c
 - 2026-05-08: Taught the shared pipeline gate to regenerate stale summaries when stored summary provenance no longer matches the current transcript source.
 - 2026-05-09: Extended the control-plane benchmark to measure current-versus-stale summary provenance scenarios and confirmed only a small worker-scan delta at 250 synthetic jobs.
 - 2026-05-09: Exposed summary freshness through shared retrieval responses so API consumers and CLI JSON can tell whether a summary still matches the current source artifact.
+- 2026-05-09: Split the public job transport model from the stored job record, removed `current_stage` from public payloads, and added `summary_state` to the shared job view.
+- 2026-05-09: Canonicalized public `workflow_stage` from artifact-backed workflow progress so job payloads stay coherent even after out-of-order stage execution.
+- 2026-05-09: Removed `current_stage` from stored job records, switched internal tests to the shared `next_pending_stage` owner, and retired the duplicate orchestrator summary-source helper.
+- 2026-05-09: Moved this file from `docs/plans/active/` to `docs/plans/completed/` after the done bar was validated.
 
 ## Decision Log
 
@@ -170,11 +176,14 @@ Finish the current cleanup of workflow ownership and operator-facing interface c
 - 2026-05-08: Use a small shared query module for retrieval instead of introducing a larger service layer before more artifact types exist.
 - 2026-05-08: Treat source-less jobs as an internal/manual seeded-artifact workflow only, not a public API create-job shape.
 - 2026-05-08: Put the first measurement path in a script rather than tests so local benchmarking stays opt-in and does not slow the regression suite.
+- 2026-05-09: Remove `current_stage` from public transport now that no external compatibility requirement exists, while keeping storage permissive until any persistence migration is justified.
+- 2026-05-09: Derive public `workflow_stage` from canonical artifact-backed progress instead of exposing the raw persisted field directly.
+- 2026-05-09: Remove `current_stage` from stored job records as well, because the shared workflow owner and public transport split made the field redundant.
+- 2026-05-09: Close the scoped workflow/interface plan after the remaining duplicate helper paths were retired and the full normalization suite revalidated.
 
 ## Open Questions
 
-- Should `current_stage` eventually be removed once `workflow_stage` and `next_stage` are widely adopted across the interfaces, or does the compatibility value still justify keeping it?
-- Which useful next slice should land first: more interface cleanup around wider `workflow_stage` and `next_stage` adoption, or job-level summary freshness hints now that retrieval-level freshness is visible and provenance invalidation looks cheap enough to keep?
+- None. Closed on 2026-05-09 after removing `current_stage` from storage and deduplicating the remaining summary-source helper path.
 
 ## Risks
 
@@ -184,9 +193,9 @@ Finish the current cleanup of workflow ownership and operator-facing interface c
 
 ## Handoff Notes
 
-- Start with [DEVNOTES.md](../../../DEVNOTES.md) to confirm the latest verified baseline before resuming this plan.
-- Use the progress log in this plan only for scoped handoff, not for repository-wide truth.
-- If the active workstream completes, move stable conclusions back into owner docs and then archive or remove this plan.
+- Start with [DEVNOTES.md](../../../DEVNOTES.md) to confirm the latest verified baseline before acting on any follow-on work.
+- Treat this file as historical only; it no longer owns live scoped progress.
+- Use [docs/master-plan.md](../../master-plan.md) and [docs/progress-tracker.md](../../progress-tracker.md) to choose the next active workstream.
 
 ## Done Bar
 
@@ -196,4 +205,4 @@ Finish the current cleanup of workflow ownership and operator-facing interface c
 
 ## Archive Note
 
-- Move this file out of the active plan location only after the done bar is met and final validation is recorded.
+- Completed and moved to `docs/plans/completed/` on 2026-05-09 after the done bar was met and final validation was recorded.
